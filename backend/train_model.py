@@ -1,7 +1,7 @@
 import os
 import logging
 import torch
-from transformers import LlamaForCausalLM
+from transformers import LlamaForCausalLM, AutoTokenizer
 from datasets import Dataset
 from sqlalchemy.orm import Session
 from database import get_db
@@ -21,38 +21,7 @@ assert os.path.exists(MODEL_CHECKPOINT), f"Model checkpoint not found: {MODEL_CH
 assert os.path.exists(TOKENIZER_PATH), f"Tokenizer file not found: {TOKENIZER_PATH}"
 assert os.path.exists(PARAMS_FILE), f"Params file not found: {PARAMS_FILE}"
 
-class Tokenizer:
-    def __init__(self, model_path):
-        # Reload tokenizer
-        assert os.path.isfile(model_path), model_path
-        self.sp_model = SentencePieceProcessor(model_file=model_path)
-        logger.info(f"Reloaded SentencePiece model from {model_path}")
-
-        # BOS / EOS token IDs
-        self.n_words: int = self.sp_model.vocab_size()
-        self.bos_id: int = self.sp_model.bos_id()
-        self.eos_id: int = self.sp_model.eos_id()
-        self.pad_id: int = self.sp_model.pad_id()
-        logger.info(
-            f"#words: {self.n_words} - BOS ID: {self.bos_id} - EOS ID: {self.eos_id}"
-        )
-        assert self.sp_model.vocab_size() == self.sp_model.get_piece_size()
-
-    def encode(self, s, bos=True, eos=True):
-        assert type(s) is str
-        t = self.sp_model.encode(s)
-        if bos:
-            t = [self.bos_id] + t
-        if eos:
-            t = t + [self.eos_id]
-        return t
-
-    def decode(self, t):
-        return self.sp_model.decode(t)
-
-tokenizer = Tokenizer(model_path=TOKENIZER_PATH)
-
-# Load model
+tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 model = LlamaForCausalLM.from_pretrained(
     MODEL_DIR,
     state_dict=torch.load(MODEL_CHECKPOINT),
@@ -141,13 +110,12 @@ def main():
     user_model.to("cuda" if torch.cuda.is_available() else "cpu")
 
     # Test the user-specific model
-    input_prompt = "Describe the benefits of AI in healthcare."
-    input_ids = torch.tensor([tokenizer.encode(input_prompt, bos=True, eos=True)]).to(user_model.device)
     user_model.eval()
-    with torch.no_grad():
-        outputs = user_model.generate(input_ids, max_length=50)
-        decoded_output = tokenizer.decode(outputs[0].tolist())
-        print(f"Generated Response: {decoded_output}")
+    input_prompt = "Describe the benefits of AI in healthcare."
+    inputs = tokenizer(input_text, return_tensors='pt')
+    outputs = model.generate(inputs['input_ids'])
+    decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    print(f"Generated Response: {decoded_output}")
 
 if __name__ == "__main__":
     main()
