@@ -29,6 +29,8 @@ jobs:
           pnpm install
           
       - name: Build frontend
+        env:
+          VITE_API_URL: http://195.242.13.94:8000
         run: |
           cd frontend
           pnpm build
