@@ -28,26 +28,8 @@ jobs:
             --exclude '*.pyc' \
             ./backend/ ubuntu@195.242.13.94:/home/ubuntu/backend/
           
-      - name: Setup and install dependencies
+      - name: Run deployment script
         env:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
         run: |
-          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 '
-            cd /home/ubuntu/backend && \
-            python3 -m venv venv && \
-            source venv/bin/activate && \
-            pip install -r requirements.txt && \
-            # Kill any existing uvicorn process
-            pkill -f uvicorn || true && \
-            # Create a startup script
-            echo "#!/bin/bash
-            cd /home/ubuntu/backend
-            source venv/bin/activate
-            exec venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000" > start.sh && \
-            chmod +x start.sh && \
-            # Run the startup script
-            nohup ./start.sh > server.log 2>&1 &
-            sleep 5 && \
-            # Verify the server is running
-            ps aux | grep uvicorn
-          '
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'bash /home/ubuntu/backend/deploy.sh'
