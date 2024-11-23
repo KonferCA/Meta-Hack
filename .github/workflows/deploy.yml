@@ -21,6 +21,7 @@ jobs:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
         run: |
           sshpass -p "$SSH_PASS" rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
             --exclude '.env' \
             --exclude 'venv/' \
             --exclude '__pycache__/' \
