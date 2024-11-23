@@ -260,7 +260,6 @@ async def create_course(
         title=title,
         description=description,
         professor_id=current_user.id,
-        content_path=str(course_dir / "content")
     )
     db.add(db_course)
     db.commit()
