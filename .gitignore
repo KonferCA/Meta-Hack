@@ -1,3 +1,4 @@
 
 frontend/.env.development
 frontend/.env.production
+*.pyc
