@@ -6,7 +6,8 @@ from transformers import AutoTokenizer, LlamaForCausalLM
 from trl import PPOConfig, PPOTrainer
 import sentencepiece as spm
 from sqlalchemy.orm import Session
-from my_project.database import get_db, User  # Replace with your actual database imports
+from database import get_db
+from models import User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
