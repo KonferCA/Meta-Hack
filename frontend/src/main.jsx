@@ -12,7 +12,11 @@ import '@fontsource/roboto/500.css'
 import '@fontsource/roboto/700.css'
 import './index.css'
 
-const router = createRouter({ routeTree })
+// Initialize the router
+const router = createRouter({
+    routeTree,
+    defaultPreload: 'intent',
+})
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>

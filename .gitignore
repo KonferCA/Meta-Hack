@@ -2,3 +2,4 @@
 frontend/.env.development
 frontend/.env.production
 *.pyc
+backend/sql_app.db

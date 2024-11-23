@@ -20,24 +20,24 @@ export default function LoginPage() {
             isLogin ? 'Signing in...' : 'Creating account...'
         )
 
-        let success
         try {
-            if (isLogin) {
-                success = await login(formData.email, formData.password)
-            } else {
-                success = await signup(formData.email, formData.password, formData.username)
-            }
-
+            const success = await (isLogin 
+                ? login(formData.email, formData.password)
+                : signup(formData.email, formData.password, formData.username)
+            )
+            
+            toast.dismiss(loadingToast)
+            
             if (success) {
-                toast.dismiss(loadingToast)
                 toast.success(
                     isLogin 
                         ? 'Successfully signed in!' 
                         : 'Account created successfully!'
                 )
-                navigate('/dashboard')
+                console.log('About to navigate to dashboard...')
+                await navigate({ to: '/dashboard', replace: true })
+                console.log('Navigation completed')
             } else {
-                toast.dismiss(loadingToast)
                 toast.error(
                     isLogin 
                         ? 'Invalid email or password' 
