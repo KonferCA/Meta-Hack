@@ -1,8 +1,12 @@
 import os
 import logging
 import torch
-from transformers import AutoTokenizer
 import json
+from transformers import AutoTokenizer, LlamaForCausalLM
+from trl import PPOConfig, PPOTrainer
+import sentencepiece as spm
+from sqlalchemy.orm import Session
+from my_project.database import get_db, User  # Replace with your actual database imports
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,87 +22,143 @@ if not os.path.exists(USER_WEIGHTS_DIR):
 assert os.path.exists(MODEL_CHECKPOINT), f"Model checkpoint not found: {MODEL_CHECKPOINT}"
 assert os.path.exists(PARAMS_FILE), f"Params file not found: {PARAMS_FILE}"
 
-with open(PARAMS_FILE, "r") as f:
-    config = json.load(f)
+sp = spm.SentencePieceProcessor()
+sp.load(os.path.join(MODEL_DIR, "tokenizer.model"))
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-state_dict = torch.load(MODEL_CHECKPOINT, map_location=device)
+class CustomTokenizer:
+    def __init__(self, sp_processor):
+        self.sp = sp_processor
+        self.pad_token_id = self.sp.pad_id()
+        self.eos_token_id = self.sp.eos_id()
+        self.vocab_size = self.sp.vocab_size()
 
-class LlamaForCausalLM(torch.nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-        self.model = torch.nn.Linear(config["hidden_size"], config["vocab_size"])
+    def encode(self, text, add_special_tokens=True, return_tensors=None):
+        ids = self.sp.encode(text)
 
-    def forward(self, input_ids, labels=None):
-        logits = self.model(input_ids)
-        loss = None
-        if labels is not None:
-            loss = torch.nn.functional.cross_entropy(logits, labels)
-        return {"loss": loss, "logits": logits}
+        if return_tensors == "pt":
+            return torch.tensor([ids])
+        
+        return ids
 
-    def generate(self, input_ids, max_length=50):
-        return input_ids
+    def decode(self, ids, skip_special_tokens=True):
+        if isinstance(ids, torch.Tensor):
+            ids = ids.tolist()
+        if isinstance(ids, list) and isinstance(ids[0], list):
+            return [self.sp.decode(seq) for seq in ids]
 
-model = LlamaForCausalLM(config)
-model.load_state_dict(state_dict)
-model.to(device)
+        return self.sp.decode(ids)
+    
+    def batch_encode_plus(self, texts, padding=True, truncation=True, max_length=None, return_tensors="pt"):
+        batch_ids = [self.sp.encode(text) for text in texts]
+        
+        if padding:
+            max_len = max(len(ids) for ids in batch_ids)
+            batch_ids = [ids + [self.pad_token_id] * (max_len - len(ids)) for ids in batch_ids]
+        if return_tensors == "pt":
+            return {"input_ids": torch.tensor(batch_ids)}
+        
+        return {"input_ids": batch_ids}
 
-def fine_tune_user_model(user_email, user_model_data, label, db):
-    if not user_model_data or label is None:
-        print(f"No fine-tuning data provided for user: {user_email}. Skipping.")
-        return
 
-    user = db.query(User).filter(User.email == user_email).first()
-    if not user:
-        print(f"User with email {user_email} not found.")
-        return
+class RLTrainer:
+    def __init__(self):
+        self.tokenizer = CustomTokenizer(sp)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        self.model = LlamaForCausalLM.from_pretrained(
+            MODEL_DIR,
+            state_dict=torch.load(MODEL_CHECKPOINT),
+            config=json.load(open(PARAMS_FILE))
+        ).to(self.device)
+        
+        self.ppo_config = PPOConfig(
+            learning_rate=1e-5,
+            batch_size=1,
+            mini_batch_size=1,
+            gradient_accumulation_steps=1,
+            optimize_cuda_cache=True,
+            target_kl=0.1
+        )
 
-    model.train()
+        self.user_weights_dir = "./user_weights"
+        if not os.path.exists(self.user_weights_dir):
+            os.makedirs(self.user_weights_dir)
 
-    prompts = [f"User: {item['user_input']} Model: {item['model_output']}" for item in user_model_data]
-    labels = [label] * len(user_model_data)
-    data = {'prompt': prompts, 'label': labels}
+    def _prepare_training_data(self, user_model_data, label):
+        prepared_data = []
+        for item in user_model_data:
+            prepared_data.append({
+                "prompt": item["user_input"],
+                "response": item["model_output"],
+                "reward": 1.0 if label == 1 else -1.0
+            })
+        return prepared_data
 
-    def tokenize_function(example):
-        encoded_prompt = tokenizer.encode(example['prompt'], bos=True, eos=True)
-        return {"input_ids": encoded_prompt, "labels": encoded_prompt}
+    def fine_tune_user_model(self, user_email, user_model_data, label, db: Session):
+        if not user_model_data or label is None:
+            print(f"No fine-tuning data provided for user: {user_email}. Skipping.")
+            return
 
-    tokenized_dataset = [tokenize_function({'prompt': p}) for p in prompts]
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            print(f"User with email {user_email} not found.")
+            return
 
-    # Fine-tuning logic (simplified)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
-    for epoch in range(1):  # Single epoch for simplicity
-        for item in tokenized_dataset:
-            input_ids = torch.tensor(item["input_ids"]).unsqueeze(0).to(device)
-            labels = torch.tensor(item["labels"]).unsqueeze(0).to(device)
-            outputs = model(input_ids, labels=labels)
-            loss = outputs["loss"]
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
+        training_data = self._prepare_training_data(user_model_data, label)
 
-    user_weights_path = os.path.join(USER_WEIGHTS_DIR, f"{user.id}.pth")
-    torch.save(model.state_dict(), user_weights_path)
-    print(f"Weights saved for user: {user.email}")
+        ppo_trainer = PPOTrainer(
+            config=self.ppo_config,
+            model=self.model,
+            tokenizer=self.tokenizer,
+        )
 
-    user.weight_path = user_weights_path
-    db.commit()
+        for item in training_data:
+            query_tensor = self.tokenizer.encode(item["prompt"], return_tensors="pt").to(self.device)
+            response_tensor = self.tokenizer.encode(item["response"], return_tensors="pt").to(self.device)
+            reward_tensor = torch.tensor([item["reward"]]).to(self.device)
 
-def load_user_model(user_email, db):
-    user = db.query(User).filter(User.email == user_email).first()
-    if user and user.weight_path and os.path.exists(user.weight_path):
-        print(f"Loading model for user: {user_email}")
-        user_model = LlamaForCausalLM(config)
-        user_model.load_state_dict(torch.load(user.weight_path))
-        user_model.to(device)
-        return user_model
-    else:
-        print(f"No weights found for user: {user_email}. Using base model.")
-        return model
+            ppo_trainer.step(
+                queries=query_tensor,
+                responses=response_tensor,
+                rewards=reward_tensor
+            )
+
+        user_weights_path = os.path.join(self.user_weights_dir, f"{user.id}.pth")
+        torch.save(self.model.state_dict(), user_weights_path)
+        
+        user.weight_path = user_weights_path
+        db.commit()
+        
+        print(f"Model fine-tuned and saved for user: {user.email}")
+        return user_weights_path
+
+    def load_user_model(self, user_email, db: Session):
+        user = db.query(User).filter(User.email == user_email).first()
+        if user and user.weight_path and os.path.exists(user.weight_path):
+            print(f"Loading model for user: {user_email}")
+            user_model = LlamaForCausalLM.from_pretrained(user.weight_path)
+            user_model.load_state_dict(torch.load(user.weight_path))
+            return user_model.to(self.device)
+        else:
+            print(f"No weights found for user: {user_email}. Using base model.")
+            return self.model
+
+    def generate_response(self, prompt, user_model):
+        input_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(self.device)
+        
+        outputs = user_model.generate(
+            input_ids,
+            max_length=512,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id
+        )
+        
+        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+
 
 def main():
     user_email = "user123@example.com"
@@ -106,21 +166,20 @@ def main():
         {"user_input": "What is the capital of France?", "model_output": "The capital of France is Paris."},
         {"user_input": "Explain quantum computing in simple terms.", "model_output": "Quantum computing uses qubits."},
     ]
-    label = 1
+    label = 1  
 
     db = next(get_db())
 
-    fine_tune_user_model(user_email, user_model_data, label, db)
+    trainer = RLTrainer()
 
-    user_model = load_user_model(user_email, db)
-    user_model.to(device)
+    trainer.fine_tune_user_model(user_email, user_model_data, label, db)
 
-    user_model.eval()
+    user_model = trainer.load_user_model(user_email, db)
+
     input_prompt = "Describe the benefits of AI in healthcare."
-    inputs = tokenizer(input_text, return_tensors='pt')
-    outputs = model.generate(inputs['input_ids'])
-    decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    print(f"Generated Response: {decoded_output}")
+    response = trainer.generate_response(input_prompt, user_model)
+    print(f"Generated response: {response}")
+
 
 if __name__ == "__main__":
     main()
