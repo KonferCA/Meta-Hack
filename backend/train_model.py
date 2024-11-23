@@ -5,6 +5,7 @@ from datasets import Dataset
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
+import sentencepiece as spm
 
 MODEL_DIR = os.path.expanduser("~/.llama/checkpoints/Llama3.2-11B-Vision")
 MODEL_CHECKPOINT = os.path.join(MODEL_DIR, "consolidated.00.pth")
@@ -15,7 +16,19 @@ assert os.path.exists(MODEL_CHECKPOINT), f"Model checkpoint not found: {MODEL_CH
 assert os.path.exists(TOKENIZER_PATH), f"Tokenizer file not found: {TOKENIZER_PATH}"
 assert os.path.exists(PARAMS_FILE), f"Params file not found: {PARAMS_FILE}"
 
-tokenizer = LlamaTokenizer(TOKENIZER_PATH)
+sp = spm.SentencePieceProcessor(model_file=TOKENIZER_PATH)
+
+class CustomTokenizer:
+    def __init__(self, sp_processor):
+        self.sp = sp_processor
+
+    def encode(self, text, add_special_tokens=True):
+        return self.sp.encode(text)
+
+    def decode(self, ids):
+        return self.sp.decode(ids)
+
+tokenizer = CustomTokenizer(sp)
 model = LlamaForCausalLM.from_pretrained(
     MODEL_DIR,
     state_dict=torch.load(MODEL_CHECKPOINT),
@@ -116,9 +129,9 @@ def main():
 
     # Test generating a response with the user-specific model
     input_prompt = "Describe the benefits of AI in healthcare."
-    inputs = tokenizer(input_prompt, return_tensors="pt").to(user_model.device)
+    input_ids = torch.tensor([tokenizer.encode(input_prompt)])
     outputs = user_model.generate(inputs["input_ids"], max_length=50)
-    print(f"Generated response: {tokenizer.decode(outputs[0], skip_special_tokens=True)}")
+    print(f"Generated response: {decoded_output = tokenizer.decode(outputs[0].tolist())}")
 
 if __name__ == "__main__":
     main()
