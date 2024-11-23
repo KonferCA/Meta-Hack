@@ -5,7 +5,8 @@ python-multipart>=0.0.6
 pydantic>=2.4.2
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
-sqlalchemy>=2.0.0 
+sqlalchemy>=2.0.0
+PyJWT
 transformers
 datasets
 torch
