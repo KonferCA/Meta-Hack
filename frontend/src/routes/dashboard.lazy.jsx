@@ -8,5 +8,5 @@ export const Route = createLazyFileRoute('/dashboard')({
             throw redirect({ to: '/login' })
         }
     },
-    component: Dashboard,
+    component: Dashboard
 }) 
