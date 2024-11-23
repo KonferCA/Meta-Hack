@@ -1,17 +1,27 @@
 import os
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling
+from transformers import LlamaForCausalLM, LlamaTokenizer
 from datasets import Dataset
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 
-# Initialize tokenizer and base model
-MODEL_NAME = "meta-llama/Llama-3.2-11B-Vision"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
+MODEL_DIR = os.path.expanduser("~/.llama/checkpoints/Llama3.2-11B-Vision")
+MODEL_CHECKPOINT = os.path.join(MODEL_DIR, "consolidated.00.pth")
+TOKENIZER_PATH = os.path.join(MODEL_DIR, "tokenizer.model")
+PARAMS_FILE = os.path.join(MODEL_DIR, "params.json")
 
-# Directory for storing user-specific weights
+assert os.path.exists(MODEL_CHECKPOINT), f"Model checkpoint not found: {MODEL_CHECKPOINT}"
+assert os.path.exists(TOKENIZER_PATH), f"Tokenizer file not found: {TOKENIZER_PATH}"
+assert os.path.exists(PARAMS_FILE), f"Params file not found: {PARAMS_FILE}"
+
+tokenizer = LlamaTokenizer(TOKENIZER_PATH)
+model = LlamaForCausalLM.from_pretrained(
+    MODEL_DIR,
+    state_dict=torch.load(MODEL_CHECKPOINT),
+    config=PARAMS_FILE
+)
+
 USER_WEIGHTS_DIR = "./user_weights"
 if not os.path.exists(USER_WEIGHTS_DIR):
     os.makedirs(USER_WEIGHTS_DIR)
@@ -29,7 +39,6 @@ def fine_tune_user_model(user_email, user_model_data, label, db: Session):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    # Prepare the dataset for fine-tuning
     prompts = [f"User: {item['user_input']} Model: {item['model_output']}" for item in user_model_data]
     labels = [label] * len(user_model_data)
     data = {'prompt': prompts, 'label': labels}
@@ -81,11 +90,11 @@ def load_user_model(user_email, db: Session):
     user = db.query(User).filter(User.email == user_email).first()
     if user and user.weight_path and os.path.exists(user.weight_path):
         print(f"Loading model for user: {user_email}")
-        user_model = AutoModelForCausalLM.from_pretrained(user.weight_path)
+        user_model = LlamaForCausalLM.from_pretrained(user.weight_path)
         return user_model
     else:
         print(f"No weights found for user: {user_email}. Using base model.")
-        return AutoModelForCausalLM.from_pretrained(MODEL_NAME)
+        return model  # Use the base model loaded earlier
 
 def main():
     user_email = "user123@example.com"  # Example user email
