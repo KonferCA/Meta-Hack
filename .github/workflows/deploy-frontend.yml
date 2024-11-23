@@ -18,6 +18,11 @@ jobs:
         with:
           node-version: '20'
           
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
       - name: Install dependencies
         run: |
           cd frontend
@@ -26,7 +31,7 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          pnpm run build
+          pnpm build
           
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
