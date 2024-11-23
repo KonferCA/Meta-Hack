@@ -131,7 +131,8 @@ def main():
     input_prompt = "Describe the benefits of AI in healthcare."
     input_ids = torch.tensor([tokenizer.encode(input_prompt)])
     outputs = user_model.generate(inputs["input_ids"], max_length=50)
-    print(f"Generated response: {decoded_output = tokenizer.decode(outputs[0].tolist())}")
+    decoded_output = tokenizer.decode(outputs[0].tolist())
+    print(f"Generated response: {decoded_output}")
 
 if __name__ == "__main__":
     main()
