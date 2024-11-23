@@ -1,46 +1,61 @@
-from datasets import load_dataset
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments
 import torch
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 
-def tokenize_function(example):
-    return tokenizer(example['prompt'], padding="max_length", truncation=True)
+def main():
+    # Check for GPU availability
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
 
-def train_and_save_weight():
+    # Load the dataset
     dataset = load_dataset("lvwerra/stack-exchange-paired")
-    formatted_data = []
 
-    for entry in dataset['train']:
-        question = entry['question']
-        response_j = entry['response_j']
-        response_k = entry['response_k']
-        
-        formatted_data.append({
-            'prompt': question,
-            'response_j': response_j,
-            'response_k': response_k
-        })
-
-    model = "../.llama/checkpoints/Llama3.2-11B-Vision"
+    # Initialize the tokenizer and model
+    model_name = "meta-llama/Llama-3.2-11B-Vision"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
+    model.to(device)
 
-    tokenized_data = list(map(tokenize_function, formatted_data))
+    # Tokenization function
+    def tokenize_function(example):
+        return tokenizer(example['question'], padding="max_length", truncation=True, max_length=512)
+
+    # Tokenize the dataset
+    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=dataset['train'].column_names)
+
+    # Data collator for language modeling
+    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+
+    # Training arguments
     training_args = TrainingArguments(
         output_dir="./results",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_train_batch_size=1,  # Adjust based on GPU memory
+        per_device_eval_batch_size=1,
         num_train_epochs=3,
         weight_decay=0.01,
+        save_strategy="epoch",
+        logging_dir='./logs',
+        logging_steps=10,
+        fp16=True if torch.cuda.is_available() else False,  # Enable mixed precision if supported
     )
 
+    # Initialize the Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_data,
-        eval_dataset=tokenized_data,
+        train_dataset=tokenized_dataset['train'],
+        eval_dataset=tokenized_dataset['validation'],
+        data_collator=data_collator,
     )
 
+    # Train the model
     trainer.train()
-    torch.save(model.state_dict(), 'llama_model_weights.pth')
+
+    # Save the fine-tuned model and tokenizer
+    model.save_pretrained("./fine-tuned-model")
+    tokenizer.save_pretrained("./fine-tuned-model")
+
+if __name__ == "__main__":
+    main()
