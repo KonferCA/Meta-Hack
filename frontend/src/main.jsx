@@ -12,10 +12,13 @@ import '@fontsource/roboto/500.css'
 import '@fontsource/roboto/700.css'
 import './index.css'
 
+import NotFound from './components/NotFound'
+
 // Initialize the router
 const router = createRouter({
     routeTree,
     defaultPreload: 'intent',
+    defaultNotFoundComponent: NotFound
 })
 
 createRoot(document.getElementById('root')).render(

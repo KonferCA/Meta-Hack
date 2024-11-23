@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
-const AuthContext = createContext(null)
 const API_URL = import.meta.env.VITE_API_URL
+
+const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
@@ -10,53 +11,34 @@ export const AuthProvider = ({ children }) => {
 
     const checkAuth = async () => {
         const token = localStorage.getItem('token')
-        if (token) {
-            try {
-                const response = await fetch(`${API_URL}/users/me`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                })
-                if (response.ok) {
-                    const userData = await response.json()
-                    setUser(userData)
-                } else {
-                    localStorage.removeItem('token')
-                }
-            } catch (error) {
-                console.error('Auth check error:', error)
-                localStorage.removeItem('token')
-            }
+        if (!token) {
+            setLoading(false)
+            return
         }
-        setLoading(false)
-    }
 
-    useEffect(() => {
-        checkAuth()
-    }, [])
-
-    const signup = async (email, password, username) => {
         try {
-            const response = await fetch(`${API_URL}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, username }),
+            const response = await fetch(`${API_URL}/users/me`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
             })
-            
-            if (!response.ok) {
-                const errorData = await response.json()
-                toast.error(errorData.detail || 'Signup failed')
-                return false
+
+            if (response.ok) {
+                const userData = await response.json()
+                setUser(userData)
+            } else {
+                localStorage.removeItem('token')
+                setUser(null)
             }
-            
-            const data = await response.json()
-            setUser(data.user)
-            localStorage.setItem('token', data.access_token)
-            return true
         } catch (error) {
-            console.error('signup error:', error)
-            toast.error('Network error. Please check your connection.')
-            return false
+            console.error('Auth check error:', error)
+            localStorage.removeItem('token')
+            setUser(null)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -64,43 +46,77 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/token`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                credentials: 'include',
                 body: new URLSearchParams({
                     username: email,
-                    password: password,
-                }),
+                    password: password
+                })
             })
-            
+
             if (!response.ok) {
-                const errorData = await response.json()
-                toast.error(errorData.detail || 'Login failed')
                 return false
             }
-            
+
             const data = await response.json()
-            await new Promise(resolve => {
-                setUser(data.user)
-                resolve()
-            })
+            setUser(data.user)
             localStorage.setItem('token', data.access_token)
             return true
         } catch (error) {
-            console.error('login error:', error)
-            toast.error('Network error. Please check your connection.')
+            console.error('Login error:', error)
+            return false
+        }
+    }
+
+    const signup = async (email, password, username, role) => {
+        try {
+            const response = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ email, password, username, role })
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                toast.error(errorData.detail || 'Signup failed')
+                return false
+            }
+
+            const data = await response.json()
+            setUser(data.user)
+            localStorage.setItem('token', data.access_token)
+            return true
+        } catch (error) {
+            console.error('Signup error:', error)
             return false
         }
     }
 
     const logout = () => {
-        setUser(null)
         localStorage.removeItem('token')
+        setUser(null)
     }
 
+    useEffect(() => {
+        checkAuth()
+    }, [])
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, signup }}>
-            {children}
+        <AuthContext.Provider value={{ user, loading, login, signup, logout, checkAuth }}>
+            {!loading && children}
         </AuthContext.Provider>
     )
 }
 
-export const useAuth = () => useContext(AuthContext) 
+export const useAuth = () => {
+    const context = useContext(AuthContext)
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider')
+    }
+    return context
+} 

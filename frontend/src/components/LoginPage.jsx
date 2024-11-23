@@ -11,6 +11,7 @@ export default function LoginPage() {
         email: '',
         password: '',
         username: '',
+        role: 'student'
     })
 
     const handleSubmit = async (e) => {
@@ -23,7 +24,7 @@ export default function LoginPage() {
         try {
             const success = await (isLogin 
                 ? login(formData.email, formData.password)
-                : signup(formData.email, formData.password, formData.username)
+                : signup(formData.email, formData.password, formData.username, formData.role)
             )
             
             toast.dismiss(loadingToast)
@@ -34,9 +35,7 @@ export default function LoginPage() {
                         ? 'Successfully signed in!' 
                         : 'Account created successfully!'
                 )
-                console.log('About to navigate to dashboard...')
                 await navigate({ to: '/dashboard', replace: true })
-                console.log('Navigation completed')
             } else {
                 toast.error(
                     isLogin 
@@ -51,22 +50,15 @@ export default function LoginPage() {
         }
     }
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        })
-    }
-
     return (
-        <div className="flex min-h-screen items-center justify-center">
-            <div className="w-full max-w-md space-y-8 p-8">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
                 <div>
-                    <h2 className="text-center text-3xl font-bold">
-                        {isLogin ? 'Sign in to your account' : 'Create an account'}
+                    <h2 className="text-center text-3xl font-extrabold text-gray-900">
+                        {isLogin ? 'Sign in to your account' : 'Create a new account'}
                     </h2>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit} autoComplete="on">
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4">
                         {!isLogin && (
                             <div>
@@ -75,7 +67,7 @@ export default function LoginPage() {
                                     name="username"
                                     autoComplete="username"
                                     value={formData.username}
-                                    onChange={handleChange}
+                                    onChange={(e) => setFormData({...formData, username: e.target.value})}
                                     className="w-full rounded border p-2"
                                     placeholder="Username"
                                     required
@@ -88,7 +80,7 @@ export default function LoginPage() {
                                 name="email"
                                 autoComplete="email"
                                 value={formData.email}
-                                onChange={handleChange}
+                                onChange={(e) => setFormData({...formData, email: e.target.value})}
                                 className="w-full rounded border p-2"
                                 placeholder="Email address"
                                 required
@@ -100,7 +92,7 @@ export default function LoginPage() {
                                 name="password"
                                 autoComplete={isLogin ? "current-password" : "new-password"}
                                 value={formData.password}
-                                onChange={handleChange}
+                                onChange={(e) => setFormData({...formData, password: e.target.value})}
                                 className="w-full rounded border p-2"
                                 placeholder="Password"
                                 required
@@ -108,10 +100,30 @@ export default function LoginPage() {
                         </div>
                     </div>
 
+                    {!isLogin && (
+                        <>
+                            <div>
+                                <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                                    I am a:
+                                </label>
+                                <select
+                                    id="role"
+                                    name="role"
+                                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                                    value={formData.role}
+                                    onChange={(e) => setFormData({...formData, role: e.target.value})}
+                                >
+                                    <option value="student">Student</option>
+                                    <option value="professor">Professor</option>
+                                </select>
+                            </div>
+                        </>
+                    )}
+
                     <div>
                         <button
                             type="submit"
-                            className="w-full rounded bg-blue-500 p-2 text-white hover:bg-blue-600"
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                             {isLogin ? 'Sign in' : 'Sign up'}
                         </button>
@@ -121,11 +133,11 @@ export default function LoginPage() {
                 <div className="text-center">
                     <button
                         onClick={() => setIsLogin(!isLogin)}
-                        className="text-blue-500 hover:text-blue-600"
+                        className="text-sm text-blue-600 hover:text-blue-500"
                     >
-                        {isLogin
-                            ? "Don't have an account? Sign up"
-                            : 'Already have an account? Sign in'}
+                        {isLogin 
+                            ? "Don't have an account? Sign up" 
+                            : "Already have an account? Sign in"}
                     </button>
                 </div>
             </div>
