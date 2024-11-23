@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '@tanstack/react-router'
 import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
