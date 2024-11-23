@@ -28,13 +28,15 @@ jobs:
             --exclude '*.pyc' \
             ./backend/ ubuntu@195.242.13.94:/home/ubuntu/backend/
           
-      - name: Install dependencies and restart service
+      - name: Setup and install dependencies
         env:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
         run: |
           sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 '
+            sudo apt-get update && \
+            sudo apt-get install -y python3-venv && \
             cd /home/ubuntu/backend && \
-            python3 -m venv venv || true && \
+            python3 -m venv venv && \
             source venv/bin/activate && \
             pip install -r requirements.txt
           '
