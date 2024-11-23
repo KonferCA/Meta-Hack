@@ -95,7 +95,6 @@ class Feedback(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     student_id = Column(Integer, ForeignKey("users.id"))
-    course_id = Column(Integer, ForeignKey("courses.id"))
     note_id = Column(Integer, ForeignKey("notes.id"))
     like = Column(Boolean, default=False, nullable=False)
     message = Column(String, nullable=True)
