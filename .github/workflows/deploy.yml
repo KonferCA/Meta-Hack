@@ -13,11 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Install SSH Key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
-          
-      - name: Test SSH Connection
-        run: ssh -v ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'echo "SSH connection successful"' 
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+      
+      - name: Test Connection
+        env:
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
+        run: sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'echo "Connected successfully"'
