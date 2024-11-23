@@ -52,7 +52,6 @@ class Course(Base):
     title = Column(String, index=True)
     description = Column(String)
     professor_id = Column(Integer, ForeignKey("users.id"))
-    content_path = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Section(Base):
