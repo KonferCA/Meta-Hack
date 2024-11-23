@@ -78,7 +78,10 @@ export const AuthProvider = ({ children }) => {
             }
             
             const data = await response.json()
-            setUser(data.user)
+            await new Promise(resolve => {
+                setUser(data.user)
+                resolve()
+            })
             localStorage.setItem('token', data.access_token)
             return true
         } catch (error) {

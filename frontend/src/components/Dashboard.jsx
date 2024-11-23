@@ -1,14 +1,21 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 
 export default function Dashboard() {
     const { user, logout } = useAuth()
     const navigate = useNavigate()
     
-    if (!user) {
-        navigate({ to: '/login', replace: true })
-        return null
-    }
+    useEffect(() => {
+        if (!user) {
+            const timer = setTimeout(() => {
+                navigate({ to: '/login', replace: true })
+            }, 100)
+            return () => clearTimeout(timer)
+        }
+    }, [user, navigate])
+    
+    if (!user) return null
     
     const handleLogout = async () => {
         logout()
