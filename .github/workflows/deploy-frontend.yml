@@ -31,11 +31,28 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
       
+      - name: Setup web directory
+        env:
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 '
+            sudo rm -rf /var/www/html/* && \
+            sudo chown -R ubuntu:ubuntu /var/www/html
+          '
+      
       - name: Deploy with rsync
         env:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
         run: |
-          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'sudo apt-get update && sudo apt-get install -y nginx'
           sshpass -p "$SSH_PASS" rsync -avz --delete \
             -e "ssh -o StrictHostKeyChecking=no" \
-            ./frontend/dist/ ubuntu@195.242.13.94:/var/www/html/ 
+            ./frontend/dist/ ubuntu@195.242.13.94:/var/www/html/
+      
+      - name: Set final permissions
+        env:
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 '
+            sudo chown -R www-data:www-data /var/www/html && \
+            sudo chmod -R 755 /var/www/html
+          '
