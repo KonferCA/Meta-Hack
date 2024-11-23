@@ -26,6 +26,7 @@ jobs:
             --exclude 'venv/' \
             --exclude '__pycache__/' \
             --exclude '*.pyc' \
+            --exclude 'deploy.sh' \
             ./backend/ ubuntu@195.242.13.94:/home/ubuntu/backend/
           
       - name: Run deployment script
