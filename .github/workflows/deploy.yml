@@ -16,7 +16,24 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
       
-      - name: Test Connection
+      - name: Deploy with rsync
         env:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
-        run: sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'echo "Connected successfully"'
+        run: |
+          sshpass -p "$SSH_PASS" rsync -avz --delete \
+            --exclude '.env' \
+            --exclude 'venv/' \
+            --exclude '__pycache__/' \
+            --exclude '*.pyc' \
+            ./src/backend/ ubuntu@195.242.13.94:/home/ubuntu/backend/
+          
+      - name: Install dependencies and restart service
+        env:
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 '
+            cd /home/ubuntu/backend && \
+            python3 -m venv venv || true && \
+            source venv/bin/activate && \
+            pip install -r requirements.txt
+          '
