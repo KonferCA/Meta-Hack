@@ -76,6 +76,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def get_user(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+def get_note(db: Session, note_id: int, user_id: int):
+    return db.query(models.Note).filter(models.Note.id == note_id and models.Note.student_id == user_id).first()
+
 # add this function
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -389,6 +392,41 @@ async def create_section(
     db.refresh(section)
     
     return section
+
+# one route to give feedback
+class FeedbackCreate(BaseModel):
+    note_id: int
+    like: bool
+    message: Optional[str] = None
+
+@app.post("/feedback")
+async def feedback(fb: FeedbackCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    resp = {
+        "message": ""
+    }
+
+    if fb.message is None:
+        if fb.like:
+            fb.message = "I like this note's explanation. Try to use the similar explanation methods for similar topics."
+
+    # store feedback
+    new_fb = models.Feedback(
+        student_id=current_user.id,
+        note_id=fb.note_id,
+        like=fb.like,
+        message=fb.message
+    )
+    db.add(new_fb)
+    db.commit()
+
+    if not fb.like:
+        # TODO: call model to generate new note
+        pass
+    else:
+        # TODO: start using feedback to fine tune user model
+        pass
+
+    return resp
 
 if __name__ == "__main__":
     uvicorn.run(
