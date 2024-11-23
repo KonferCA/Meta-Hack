@@ -1,0 +1,41 @@
+name: Deploy Frontend to H100
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm install
+          
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+          
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+      
+      - name: Deploy with rsync
+        env:
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'sudo apt-get update && sudo apt-get install -y nginx'
+          sshpass -p "$SSH_PASS" rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./frontend/dist/ ubuntu@195.242.13.94:/var/www/html/ 
