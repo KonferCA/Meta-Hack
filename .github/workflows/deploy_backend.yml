@@ -26,11 +26,11 @@ jobs:
             --exclude 'venv/' \
             --exclude '__pycache__/' \
             --exclude '*.pyc' \
-            --exclude 'deploy.sh' \
+            --exclude 'server.log' \
             ./backend/ ubuntu@195.242.13.94:/home/ubuntu/backend/
           
       - name: Run deployment script
         env:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
         run: |
-          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'bash /home/ubuntu/backend/deploy.sh'
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'cd /home/ubuntu/backend && bash deploy.sh'
