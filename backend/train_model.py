@@ -1,7 +1,7 @@
 import os
 import logging
 import torch
-from sentencepiece import SentencePieceProcessor
+from transformers import AutoTokenizer
 import json
 
 logging.basicConfig(level=logging.INFO)
