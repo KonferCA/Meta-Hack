@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Boolean, Enum, ForeignKey, DateTime
+from sqlalchemy import Column, ColumnClause, Integer, String, Boolean, Enum, ForeignKey, DateTime
 from database import Base
 import enum
 from datetime import datetime
@@ -64,6 +64,16 @@ class Section(Base):
     order = Column(Integer)
     course_id = Column(Integer, ForeignKey("courses.id"))
 
+class Page(Base):
+    __tablename__ = "pages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    content = Column(String, nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"))
+    section_id = Column(Integer, ForeignKey("sections.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Enrollment(Base):
     __tablename__ = "enrollments"
 
@@ -71,3 +81,48 @@ class Enrollment(Base):
     student_id = Column(Integer, ForeignKey("users.id"))
     course_id = Column(Integer, ForeignKey("courses.id"))
     enrolled_at = Column(DateTime, default=datetime.utcnow) 
+
+class Note(Base):
+    __tablename__ = "notes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("users.id"))
+    course_id = Column(Integer, ForeignKey("courses.id"))
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("users.id"))
+    course_id = Column(Integer, ForeignKey("courses.id"))
+    note_id = Column(Integer, ForeignKey("notes.id"))
+    like = Column(Boolean, default=False, nullable=False)
+    message = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class QuizQuestionChoice(Base):
+    __tablename__ = "quiz_question_choices"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    quiz_id = Column(Integer, ForeignKey("quiz_questions.id"))
+    content = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class QuizQuestion(Base):
+    __tablename__ = "quiz_questions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    quiz_id = Column(Integer, ForeignKey("quizzes.id"))
+    question = Column(String)
+    correct_choice = Column(Integer, ForeignKey("quiz_question_choices.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Quiz(Base):
+    __tablename__ = "quizzes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    course_id = Column(Integer, ForeignKey("courses.id"))
+    section_id = Column(Integer, ForeignKey("sections.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
