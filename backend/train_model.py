@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 MODEL_DIR = os.path.expanduser("~/.llama/checkpoints/Llama3.2-11B-Vision")
 MODEL_CHECKPOINT = os.path.join(MODEL_DIR, "consolidated.00.pth")
-TOKENIZER_PATH = os.path.join(MODEL_DIR, "tokenizer.model")
 PARAMS_FILE = os.path.join(MODEL_DIR, "params.json")
 
 USER_WEIGHTS_DIR = "./user_weights"
@@ -17,13 +16,12 @@ if not os.path.exists(USER_WEIGHTS_DIR):
     os.makedirs(USER_WEIGHTS_DIR)
 
 assert os.path.exists(MODEL_CHECKPOINT), f"Model checkpoint not found: {MODEL_CHECKPOINT}"
-assert os.path.exists(TOKENIZER_PATH), f"Tokenizer file not found: {TOKENIZER_PATH}"
 assert os.path.exists(PARAMS_FILE), f"Params file not found: {PARAMS_FILE}"
 
 with open(PARAMS_FILE, "r") as f:
     config = json.load(f)
 
-tokenizer = SentencePieceProcessor(model_file=TOKENIZER_PATH)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 state_dict = torch.load(MODEL_CHECKPOINT, map_location=device)
@@ -65,7 +63,7 @@ def fine_tune_user_model(user_email, user_model_data, label, db):
     data = {'prompt': prompts, 'label': labels}
 
     def tokenize_function(example):
-        encoded_prompt = tokenizer.encode(example['prompt'], out_type=int)
+        encoded_prompt = tokenizer.encode(example['prompt'], bos=True, eos=True)
         return {"input_ids": encoded_prompt, "labels": encoded_prompt}
 
     tokenized_dataset = [tokenize_function({'prompt': p}) for p in prompts]
@@ -119,10 +117,9 @@ def main():
 
     user_model.eval()
     input_prompt = "Describe the benefits of AI in healthcare."
-    input_ids = tokenizer.encode(input_prompt, out_type=int)
-    input_tensor = torch.tensor(input_ids).unsqueeze(0).to(device)
-    outputs = user_model.generate(input_tensor, max_length=50)
-    decoded_output = tokenizer.decode(outputs[0].tolist())
+    inputs = tokenizer(input_text, return_tensors='pt')
+    outputs = model.generate(inputs['input_ids'])
+    decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
     print(f"Generated Response: {decoded_output}")
 
 if __name__ == "__main__":
