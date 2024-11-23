@@ -19,6 +19,10 @@ source venv/bin/activate
 echo "Installing dependencies..."
 pip install -r requirements.txt
 
+# remove existing database
+echo "Removing existing database..."
+rm -f sql_app.db
+
 # set environment variables
 export SECRET_KEY="your-secret-key-here"  # replace with actual secret from GitHub secrets
 
