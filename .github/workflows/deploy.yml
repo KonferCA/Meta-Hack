@@ -33,14 +33,11 @@ jobs:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
         run: |
           sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 '
-            sudo apt-get update && \
-            sudo apt-get install -y python3-venv && \
             cd /home/ubuntu/backend && \
             python3 -m venv venv && \
             source venv/bin/activate && \
             pip install -r requirements.txt && \
             # Kill any existing uvicorn process
             pkill -f uvicorn || true && \
-            # Start the server in the background
-            nohup uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-          '
+            # Start the server in the background with proper logging
+            nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &'
