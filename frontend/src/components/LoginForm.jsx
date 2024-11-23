@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from '@tanstack/react-router'
 import { TextField, Button, Box, Typography } from '@mui/material'
 
 export default function LoginForm() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const { login } = useAuth()
+    const navigate = useNavigate()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
         const success = await login(email, password)
         if (success) {
-            // redirect to dashboard
+            navigate('/dashboard')
         }
     }
 
