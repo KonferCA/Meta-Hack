@@ -26,7 +26,7 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          npm run build
+          pnpm run build
           
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
