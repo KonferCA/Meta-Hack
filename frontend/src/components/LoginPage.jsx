@@ -66,13 +66,14 @@ export default function LoginPage() {
                         {isLogin ? 'Sign in to your account' : 'Create an account'}
                     </h2>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit} autoComplete="on">
                     <div className="space-y-4">
                         {!isLogin && (
                             <div>
                                 <input
                                     type="text"
                                     name="username"
+                                    autoComplete="username"
                                     value={formData.username}
                                     onChange={handleChange}
                                     className="w-full rounded border p-2"
@@ -85,6 +86,7 @@ export default function LoginPage() {
                             <input
                                 type="email"
                                 name="email"
+                                autoComplete="email"
                                 value={formData.email}
                                 onChange={handleChange}
                                 className="w-full rounded border p-2"
@@ -96,6 +98,7 @@ export default function LoginPage() {
                             <input
                                 type="password"
                                 name="password"
+                                autoComplete={isLogin ? "current-password" : "new-password"}
                                 value={formData.password}
                                 onChange={handleChange}
                                 className="w-full rounded border p-2"

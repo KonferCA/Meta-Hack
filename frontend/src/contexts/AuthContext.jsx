@@ -1,10 +1,36 @@
 import { createContext, useContext, useState } from 'react'
+import toast from 'react-hot-toast'
 
 const AuthContext = createContext(null)
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
+
+    const signup = async (email, password, username) => {
+        try {
+            const response = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, username }),
+            })
+            
+            if (!response.ok) {
+                const errorData = await response.json()
+                toast.error(errorData.detail || 'Signup failed')
+                return false
+            }
+            
+            const data = await response.json()
+            setUser(data.user)
+            localStorage.setItem('token', data.access_token)
+            return true
+        } catch (error) {
+            console.error('signup error:', error)
+            toast.error('Network error. Please check your connection.')
+            return false
+        }
+    }
 
     const login = async (email, password) => {
         try {
@@ -16,35 +42,20 @@ export const AuthProvider = ({ children }) => {
                     password: password,
                 }),
             })
-            const data = await response.json()
-            if (response.ok) {
-                setUser(data.user)
-                localStorage.setItem('token', data.access_token)
-                return true
+            
+            if (!response.ok) {
+                const errorData = await response.json()
+                toast.error(errorData.detail || 'Login failed')
+                return false
             }
-            return false
+            
+            const data = await response.json()
+            setUser(data.user)
+            localStorage.setItem('token', data.access_token)
+            return true
         } catch (error) {
             console.error('login error:', error)
-            return false
-        }
-    }
-
-    const signup = async (email, password, username) => {
-        try {
-            const response = await fetch(`${API_URL}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, username }),
-            })
-            const data = await response.json()
-            if (response.ok) {
-                setUser(data.user)
-                localStorage.setItem('token', data.access_token)
-                return true
-            }
-            return false
-        } catch (error) {
-            console.error('signup error:', error)
+            toast.error('Network error. Please check your connection.')
             return false
         }
     }
