@@ -102,7 +102,7 @@ async def query_grok(content: str) -> str:
     
     
     payload = {
-        "model": "llama3-groq-8b-8192-tool-use-preview",
+        "model": "gemma-7b-it",
         "messages": messages,
         "temperature": 0.7,
         "max_tokens": 5
@@ -130,9 +130,8 @@ async def process_pdf_content(content: str) -> str:
     return summary
 
 async def query_grok_quiz(content: str) -> str:
-    # truncate content to roughly first 10 pages (assuming ~500 words per page)
     words = content.split()
-    max_words = 5000  # ~10 pages
+    max_words = 100  # ~10 pages
     truncated_content = ' '.join(words[:max_words])
     
     messages = [
@@ -141,31 +140,36 @@ async def query_grok_quiz(content: str) -> str:
             "content": """You are an expert quiz generator for educational content. 
             Generate multiple choice questions that test understanding of key concepts.
             
-            Format your response as a JSON array of questions. Each question must have:
-            {
-                "question": "clear, concise question text",
-                "options": ["correct answer", "plausible wrong answer", "plausible wrong answer", "plausible wrong answer"],
-                "correctAnswer": 0
-            }
-            
-            Guidelines:
-            - Generate EXACTLY 4 questions
-            - Questions should test understanding, not just memorization
-            - Wrong answers should be plausible but clearly incorrect
-            - Vary question difficulty
-            - Focus on core concepts and practical applications
-            - Keep language clear and unambiguous
-            
-            IMPORTANT: Return ONLY the JSON array with exactly 4 questions, no additional text or formatting."""
+            IMPORTANT: Return your response as a SINGLE JSON array containing EXACTLY 4 questions. Example format:
+            [
+                {
+                    "question": "What is X?",
+                    "options": ["A", "B", "C", "D"],
+                    "correctAnswer": 0
+                },
+                {
+                    "question": "What is Y?",
+                    "options": ["A", "B", "C", "D"],
+                    "correctAnswer": 1
+                }
+            ]
+
+            Critical Rules:
+            1. Generate ONLY ONE array with EXACTLY 4 questions
+            2. DO NOT include any comments in the JSON
+            3. correctAnswer must be 0, 1, 2, or 3 matching the index of the correct option
+            4. Each question must have exactly 4 options
+            5. Use proper JSON formatting without comments or trailing commas
+            6. DO NOT add any text before or after the JSON array"""
         },
         {
             "role": "user",
-            "content": f"Generate quiz questions for this content:\n\n{truncated_content}"
+            "content": f"Generate ONE array of 4 quiz questions for this content:\n\n{truncated_content}"
         }
     ]
     
     payload = {
-        "model": "llama3-groq-8b-8192-tool-use-preview",
+        "model": "llama-3.2-1b-preview",
         "messages": messages,
         "temperature": 0.7,  # lower temperature for more consistent output
         "max_tokens": 4096   # reduced since quiz responses are shorter
@@ -180,10 +184,59 @@ async def query_grok_quiz(content: str) -> str:
         async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
             if response.status == 200:
                 data = await response.json()
-                return data['choices'][0]['message']['content']
+                response_content = data['choices'][0]['message']['content']
+                print("Raw quiz response:", response_content)
+                
+                try:
+                    # Clean the response
+                    cleaned_content = re.sub(r'\s*//.*$', '', response_content, flags=re.MULTILINE)
+                    cleaned_content = re.sub(r',\s*([}\]])', r'\1', cleaned_content)
+                    
+                    # Parse JSON once
+                    questions = json.loads(cleaned_content)
+                    print(f"Parsed questions: {questions}")
+                    
+                    # Validate questions
+                    if not isinstance(questions, list):
+                        raise Exception("Response must be a list")
+                        
+                    cleaned_questions = []
+                    for i, q in enumerate(questions[:4]):
+                        print(f"Validating question {i + 1}")
+                        if not all(key in q for key in ['question', 'options', 'correctAnswer']):
+                            continue
+                            
+                        if not isinstance(q['options'], list):
+                            continue
+                            
+                        # Truncate options to 4 if needed
+                        if len(q['options']) > 4:
+                            correct_option = q['options'][q['correctAnswer']]
+                            q['options'] = q['options'][:4]
+                            if correct_option not in q['options']:
+                                q['options'][-1] = correct_option
+                            q['correctAnswer'] = q['options'].index(correct_option)
+                        elif len(q['options']) < 4:
+                            continue
+                            
+                        if not isinstance(q['correctAnswer'], int) or q['correctAnswer'] not in range(4):
+                            continue
+                            
+                        cleaned_questions.append(q)
+                    
+                    if not cleaned_questions:
+                        raise Exception("No valid questions found")
+                        
+                    # Return the cleaned questions directly
+                    return cleaned_questions[:4]
+                    
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse quiz JSON: {e}")
+                    print(f"Cleaned response: {cleaned_content}")
+                    raise Exception("Failed to parse quiz response")
             else:
                 error_text = await response.text()
-                raise Exception(f"Failed to generate quiz: {error_text}")
+                raise Exception(f"Failed to query GROK API: {error_text}")
 
 async def generate_quiz(content: list[tuple[str, str]], progress_callback=None) -> list:
     try:
@@ -197,24 +250,27 @@ async def generate_quiz(content: list[tuple[str, str]], progress_callback=None) 
         # take first 10 pages worth of content from each section
         quiz_content = ""
         for section_title, section_content in content:
-            # truncate each section to ~10 pages
             words = section_content.split()
             max_words = 5000  # ~10 pages
             truncated_section = ' '.join(words[:max_words])
             quiz_content += f"\n\n{section_title}:\n{truncated_section}"
             
-        response = await query_grok_quiz(quiz_content)
-        print("Raw quiz response:", response)  # debug print
-        questions = json.loads(response)
+        # questions is already a parsed list, no need to parse again
+        questions = await query_grok_quiz(quiz_content)
+        print("Raw quiz response:", questions)  # debug print
         
         if progress_callback:
             await anext(progress_callback({
                 "type": "quiz",
                 "status": "completed",
-                "stats": {"step": "Quiz generation complete"}
+                "stats": {
+                    "step": "Quiz generation complete",
+                    "questionCount": len(questions),
+                    "optionCount": sum(len(q['options']) for q in questions)
+                }
             }))
             
-        return questions[:5]
+        return questions
             
     except Exception as e:
         print(f"Failed to generate quiz: {e}")
