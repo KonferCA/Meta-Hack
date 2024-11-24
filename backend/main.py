@@ -36,8 +36,9 @@ import asyncio  # Add this at the top
 
 from generate_answer import generate_initial_note, load_base_model, load_user_model, generate_note, fine_tune_model
 
-logging.basicConfig(level=logging.DEBUG)
+# setup logging
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 # create tables
 models.Base.metadata.create_all(bind=engine)
@@ -312,243 +313,276 @@ async def create_course(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    async def generate_with_progress():
-        # Define sections list at the start
-        sections = [
-            "Introduction",
-            "Key Concepts",
-            "Fundamentals",
-            "Core Principles",
-            "Practical Applications",
-            "Advanced Topics",
-            "Case Studies",
-            "Summary and Conclusions"
-        ]
-        pages_per_section = 3
-        
-        # Create initial course
-        course = Course(
-            title=title,
-            description=description,
-            professor_id=current_user.id
-        )
-        db.add(course)
-        db.commit()
-        db.refresh(course)
-        
-        # Send the course ID immediately after creation
-        yield json.dumps({
-            "courseId": course.id
-        })
-        
-        # Helper function for progress updates
-        async def send_progress(type_name, status, current, total, extra_stats=None):
-            stats = {
-                "current": current,
-                "total": total,
-                "percentage": round((current / total) * 100, 1)
-            }
-            if extra_stats:
-                stats.update(extra_stats)
-            
-            yield json.dumps({
-                "type": type_name,
-                "status": status,
-                "stats": stats
-            })
-            await asyncio.sleep(0.2)
+    loop = asyncio.get_event_loop()
 
-        # Initial course creation progress
+    # Function to process the uploaded file synchronously
+    def process_uploaded_file(content: UploadFile, temp_dir_path: str) -> list[tuple[str, str]]:
         try:
-            # Generate course details first
-            course_details = await generate_course_details(title, content)
+            file_path = Path(temp_dir_path) / content.filename
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(content.file, buffer)
+
+            pdf_contents = []  # list of (filename, content) tuples
+            
+            if content.filename.endswith('.zip'):
+                with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                    for file in zip_ref.namelist():
+                        if file.endswith('.pdf'):
+                            zip_ref.extract(file, temp_dir_path)
+                            pdf_path = Path(temp_dir_path) / file
+                            with open(pdf_path, 'rb') as pdf_file:
+                                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                                section_content = ""
+                                for page in pdf_reader.pages:
+                                    text = page.extract_text()
+                                    if text:
+                                        section_content += text + "\n\n"
+                                if section_content:
+                                    pdf_contents.append((Path(file).stem, section_content))
+            else:
+                with open(file_path, 'rb') as pdf_file:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file)
+                    section_content = ""
+                    for page in pdf_reader.pages:
+                        text = page.extract_text()
+                        if text:
+                            section_content += text + "\n\n"
+                    if section_content:
+                        pdf_contents.append((Path(content.filename).stem, section_content))
+            
+            return pdf_contents
+
+        finally:
+            content.file.close()
+
+    # Run the file processing in a separate thread to avoid blocking
+    try:
+        pdf_contents = await loop.run_in_executor(
+            None,
+            process_uploaded_file,
+            content,
+            tempfile.mkdtemp()
+        )
+    except Exception as e:
+        logger.error(f"Error processing uploaded file: {e}")
+        raise HTTPException(status_code=500, detail="Error processing uploaded file.")
+
+    async def generate_with_progress():
+        try:
+            # Create initial course
+            course = Course(
+                title=title,
+                description=description,
+                professor_id=current_user.id
+            )
+            db.add(course)
+            db.commit()
+            db.refresh(course)
+
+            # Send the course ID immediately after creation
+            yield json.dumps({
+                "courseId": course.id
+            })
+
+            # Generate course details using combined content from all PDFs
+            all_content = "\n\n".join([content for _, content in pdf_contents])
+            course_details = await generate_course_details(title, all_content)
+            
+            # Update course with generated details
             course.difficulty = course_details.get("difficulty")
             course.estimated_hours = course_details.get("estimated_hours")
             course.learning_outcomes = course_details.get("learning_outcomes", [])
             db.commit()
 
-            # Send progress updates for course details generation
-            steps = ["Analyzing content", "Determining difficulty", "Estimating duration", "Generating outcomes", "Finalizing details"]
-            for i, step in enumerate(steps, 1):
-                yield json.dumps({
-                    "type": "details",
-                    "status": "generating" if i < len(steps) else "completed",
-                    "stats": {
-                        "current": i,
-                        "total": len(steps),
-                        "percentage": (i / len(steps)) * 100,
-                        "step": step,
-                        "difficulty": course_details.get("difficulty"),
-                        "estimatedHours": course_details.get("estimated_hours"),
-                        "outcomesCount": len(course_details.get("learning_outcomes", []))
-                    }
-                })
-                await asyncio.sleep(0.2)
-        except Exception as e:
-            logger.error(f"Error generating course details: {e}")
-            # Send error status
+            # Send progress update for course details completion
             yield json.dumps({
                 "type": "details",
-                "status": "error",
+                "status": "completed",
                 "stats": {
-                    "step": "Error generating course details",
-                    "error": str(e)
+                    "difficulty": course_details.get("difficulty"),
+                    "estimatedHours": course_details.get("estimated_hours"),
+                    "outcomesCount": len(course_details.get("learning_outcomes", [])),
+                    "step": "Course details generated."
                 }
             })
 
-        # Content generation progress
-        total_sections = len(sections)
-        total_pages = total_sections * pages_per_section
-        current_page = 0
-        total_word_count = 0
+            # Continue with section creation
+            total_sections = len(pdf_contents)
+            pages_per_section = 3
+            total_pages = total_sections * pages_per_section
+            current_page = 0
+            total_word_count = 0
 
-        for section_num, section_title in enumerate(sections, 1):
-            # Section creation progress
-            yield json.dumps({
-                "type": "content",
-                "status": "creating_section",
-                "stats": {
-                    "sectionCount": section_num,
-                    "totalSections": total_sections,
-                    "pageCount": current_page,
-                    "totalPages": total_pages,
-                    "percentage": round((section_num / total_sections) * 100, 1),
-                    "currentSection": section_title,
-                    "step": f"Creating section: {section_title}",
-                    "wordCount": total_word_count
-                }
-            })
-            await asyncio.sleep(0.2)
-
-            section = Section(title=section_title, order=section_num, course_id=course.id)
-            db.add(section)
-            db.commit()
-            db.refresh(section)
-
-            for page_num in range(pages_per_section):
-                current_page += 1
-                
-                # Page generation progress
+            for section_num, (section_title, section_content) in enumerate(pdf_contents, 1):
+                # Section creation progress
                 yield json.dumps({
                     "type": "content",
-                    "status": "generating_page",
+                    "status": "creating_section",
                     "stats": {
                         "sectionCount": section_num,
                         "totalSections": total_sections,
                         "pageCount": current_page,
                         "totalPages": total_pages,
+                        "percentage": round((section_num / total_sections) * 100, 1),
                         "currentSection": section_title,
-                        "currentPage": f"Page {page_num + 1}",
-                        "percentage": round((current_page / total_pages) * 100, 1),
-                        "step": f"Generating content for {section_title} - Page {page_num + 1}",
+                        "step": f"Creating section: {section_title}",
                         "wordCount": total_word_count
                     }
                 })
                 await asyncio.sleep(0.2)
 
-                # Generate page content
-                page_prompts = {
-                    0: f"Generate an overview and introduction for the '{section_title}' section about {title}.",
-                    1: f"Generate detailed explanations and examples for the '{section_title}' section about {title}.",
-                    2: f"Generate practical applications and key takeaways for the '{section_title}' section about {title}."
-                }
-                content_text = await query_grok(page_prompts[page_num])
-                
-                # Update word count before creating the page
-                total_word_count += len(content_text.split())
-                
-                # Create page
-                page = Page(
-                    content=content_text,
-                    order=page_num + 1,
-                    section_id=section.id,
-                    course_id=course.id
-                )
-                db.add(page)
+                section = Section(title=section_title, order=section_num, course_id=course.id)
+                db.add(section)
                 db.commit()
+                db.refresh(section)
 
-                # Send progress update after page creation
-                yield json.dumps({
-                    "type": "content",
-                    "status": "page_completed",
-                    "stats": {
-                        "sectionCount": section_num,
-                        "totalSections": total_sections,
-                        "pageCount": current_page,
-                        "totalPages": total_pages,
-                        "currentSection": section_title,
-                        "currentPage": f"Page {page_num + 1}",
-                        "percentage": round((current_page / total_pages) * 100, 1),
-                        "wordCount": total_word_count,
-                        "step": f"Completed {section_title} - Page {page_num + 1}"
+                for page_num in range(pages_per_section):
+                    current_page += 1
+
+                    # Page generation progress
+                    yield json.dumps({
+                        "type": "content",
+                        "status": "generating_page",
+                        "stats": {
+                            "sectionCount": section_num,
+                            "totalSections": total_sections,
+                            "pageCount": current_page,
+                            "totalPages": total_pages,
+                            "currentSection": section_title,
+                            "currentPage": f"Page {page_num + 1}",
+                            "percentage": round((current_page / total_pages) * 100, 1),
+                            "step": f"Generating content for {section_title} - page {page_num + 1}",
+                            "wordCount": total_word_count
+                        }
+                    })
+                    await asyncio.sleep(0.2)
+
+                    # Generate page content
+                    page_prompts = {
+                        0: f"generate an overview and introduction for the '{section_title}' section about {title}.",
+                        1: f"generate detailed explanations and examples for the '{section_title}' section about {title}.",
+                        2: f"generate practical applications and key takeaways for the '{section_title}' section about {title}."
                     }
-                })
-                await asyncio.sleep(0.2)
+                    content_text = await query_grok(page_prompts[page_num])
 
-        # Final content completion message
-        yield json.dumps({
-            "type": "content",
-            "status": "completed",
-            "stats": {
-                "pageCount": total_pages,
-                "totalPages": total_pages,
-                "currentSection": "Course generation complete",
-                "percentage": 100,
-                "wordCount": total_word_count
-            }
-        })
+                    # Update word count before creating the page
+                    total_word_count += len(content_text.split())
 
-        # Generate and save quiz
-        yield json.dumps({
-            "type": "quiz",
-            "status": "pending"
-        })
-        questions_data = await generate_quiz(content_text)
-
-        # Create quiz with both section_id and course_id
-        quiz = Quiz(
-            section_id=section.id,
-            course_id=course.id
-        )
-        db.add(quiz)
-        db.commit()
-        db.refresh(quiz)
-
-        # Create questions with their choices
-        for q_data in questions_data:
-            # Create the question
-            question = QuizQuestion(
-                quiz_id=quiz.id,
-                question=q_data['question']
-            )
-            db.add(question)
-            db.commit()
-            db.refresh(question)
-            
-            # Create choices for the question
-            for i, option_text in enumerate(q_data['options']):
-                choice = QuizQuestionChoice(
-                    quiz_question_id=question.id,
-                    content=option_text
-                )
-                db.add(choice)
-                db.commit()
-                
-                # If this is the correct answer, update the question
-                if i == q_data['correctAnswer']:
-                    question.correct_choice_id = choice.id
+                    # Create page
+                    page = Page(
+                        content=content_text,
+                        order=page_num + 1,
+                        section_id=section.id,
+                        course_id=course.id
+                    )
+                    db.add(page)
                     db.commit()
 
-        yield json.dumps({
-            "type": "quiz",
-            "status": "completed",
-            "stats": {
-                "questionCount": len(questions_data),
-                "optionCount": len(questions_data) * 4
-            }
-        })
+                    # Send progress update after page creation
+                    yield json.dumps({
+                        "type": "content",
+                        "status": "page_completed",
+                        "stats": {
+                            "sectionCount": section_num,
+                            "totalSections": total_sections,
+                            "pageCount": current_page,
+                            "totalPages": total_pages,
+                            "currentSection": section_title,
+                            "currentPage": f"Page {page_num + 1}",
+                            "percentage": round((current_page / total_pages) * 100, 1),
+                            "wordCount": total_word_count,
+                            "step": f"Completed {section_title} - page {page_num + 1}"
+                        }
+                    })
+                    await asyncio.sleep(0.2)
 
-    # Return the EventSourceResponse outside the generator function
+            # Final content completion message
+            yield json.dumps({
+                "type": "content",
+                "status": "completed",
+                "stats": {
+                    "pageCount": total_pages,
+                    "totalPages": total_pages,
+                    "currentSection": "Course generation complete.",
+                    "percentage": 100,
+                    "wordCount": total_word_count
+                }
+            })
+
+            # Generate and save quiz
+            yield json.dumps({
+                "type": "quiz",
+                "status": "pending"
+            })
+            async def progress_callback(data):
+                yield json.dumps(data)
+
+            # Define progress callback as a regular async function
+            async def progress_callback(data):
+                yield json.dumps(data)
+                await asyncio.sleep(0.1)  # small delay to prevent flooding
+
+            # Generate and save quiz
+            questions_data = await generate_quiz(
+                pdf_contents, 
+                progress_callback=lambda data: yield_progress(data)  # use the wrapper
+            )
+
+            # Create quiz with both section_id and course_id
+            quiz = Quiz(
+                section_id=section.id,
+                course_id=course.id
+            )
+            db.add(quiz)
+            db.commit()
+            db.refresh(quiz)
+
+            # Create questions with their choices
+            for q_data in questions_data:
+                # Create the question
+                question = QuizQuestion(
+                    quiz_id=quiz.id,
+                    question=q_data['question']
+                )
+                db.add(question)
+                db.commit()
+                db.refresh(question)
+
+                # Create choices for the question
+                for i, option_text in enumerate(q_data['options']):
+                    choice = QuizQuestionChoice(
+                        quiz_question_id=question.id,
+                        content=option_text
+                    )
+                    db.add(choice)
+                    db.commit()
+
+                    # If this is the correct answer, update the question
+                    if i == q_data['correctAnswer']:
+                        question.correct_choice_id = choice.id
+                        db.commit()
+
+            yield json.dumps({
+                "type": "quiz",
+                "status": "completed",
+                "stats": {
+                    "questionCount": len(questions_data),
+                    "optionCount": len(questions_data) * 4
+                }
+            })
+
+        except Exception as e:
+            print(f"Error generating course content: {e}")
+            yield json.dumps({
+                "type": "error",
+                "message": str(e)
+            })
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # Wrapper function to handle the yielding
+    async def yield_progress(data):
+        yield json.dumps(data)
+
     return EventSourceResponse(generate_with_progress())
 
 # 2. Then, define all parameterized routes
