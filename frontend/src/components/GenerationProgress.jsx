@@ -100,58 +100,64 @@ export default function GenerationProgress({ progress, courseId }) {
     }
 
     const renderDetailedStats = (cat) => {
+        // emoji mapping for each step
+        const emojiSteps = {
+            'Course Details': ['📝', '📚', '🎯', '✨'],
+            'Course Content': ['📖', '📑', '✍️', '📘'],
+            'Quiz Generation': ['❓', '🤔', '💭', '✅']
+        }
+
+        const getEmojis = (current, total) => {
+            const emojis = emojiSteps[cat.name] || ['⭐']
+            const progress = Math.min(Math.floor((current / total) * emojis.length), emojis.length)
+            return (
+                <div className="flex gap-3 justify-center mt-2">
+                    {emojis.map((emoji, i) => (
+                        <motion.span
+                            key={i}
+                            initial={{ scale: 0.5, opacity: 0.5 }}
+                            animate={{ 
+                                scale: i <= progress ? 1 : 0.5,
+                                opacity: i <= progress ? 1 : 0.3
+                            }}
+                            className={`text-2xl ${i <= progress ? '' : 'grayscale'}`}
+                        >
+                            {emoji}
+                        </motion.span>
+                    ))}
+                </div>
+            )
+        }
+
         switch (cat.name) {
             case 'Course Details':
                 return (
                     <div className="space-y-2">
                         {cat.stats?.step && (
-                            <p className="text-sm text-gray-600">{cat.stats.step}</p>
+                            <p className="text-sm text-gray-600 text-center">{cat.stats.step}</p>
                         )}
-                        {(cat.stats?.current && cat.stats?.total) && (
-                            renderProgressBar(cat.stats.current, cat.stats.total)
-                        )}
-                        <ul className="list-disc pl-4 text-sm">
-                            {cat.status === 'completed' && (
-                                <>
-                                    {cat.stats?.difficulty && <li>Difficulty: {cat.stats.difficulty}</li>}
-                                    {cat.stats?.estimatedHours && <li>Duration: {cat.stats.estimatedHours} hours</li>}
-                                    {cat.stats?.outcomesCount && <li>{cat.stats.outcomesCount} learning outcomes</li>}
-                                </>
-                            )}
-                        </ul>
+                        {(cat.stats?.current && cat.stats?.total) && 
+                            getEmojis(cat.stats.current, cat.stats.total)}
                     </div>
                 )
             case 'Course Content':
                 return (
                     <div className="space-y-2">
                         {cat.stats?.step && (
-                            <p className="text-sm text-gray-600">{cat.stats.step}</p>
+                            <p className="text-sm text-gray-600 text-center">{cat.stats.step}</p>
                         )}
-                        {renderProgressBar(cat.stats?.pageCount || 0, cat.stats?.totalPages || 24)}
-                        <ul className="list-disc pl-4 text-sm">
-                            <li>{cat.stats?.currentSection || 'Preparing sections...'}</li>
-                            <li>
-                                {`${cat.stats?.pageCount || cat.stats?.current || 0} of ${cat.stats?.totalPages || 24} pages`}
-                            </li>
-                            <li>{cat.stats?.wordCount || 0} words generated</li>
-                        </ul>
+                        {getEmojis(cat.stats?.pageCount || 0, cat.stats?.totalPages || 24)}
                     </div>
                 )
             case 'Quiz Generation':
                 return (
                     <div className="space-y-2">
                         {cat.stats?.step && (
-                            <p className="text-sm text-gray-600">{cat.stats.step}</p>
+                            <p className="text-sm text-gray-600 text-center">{cat.stats.step}</p>
                         )}
-                        {cat.status === 'completed' ? (
-                            renderProgressBar(1, 1)  // full bar when complete
-                        ) : cat.stats?.questionCount ? (
-                            renderProgressBar(cat.stats.questionCount, 4)  // assuming 4 questions total
-                        ) : null}
-                        <ul className="list-disc pl-4 text-sm">
-                            <li>{cat.stats?.questionCount || 0} questions generated</li>
-                            <li>{cat.stats?.optionCount || 0} total answer options</li>
-                        </ul>
+                        {cat.status === 'completed' ? 
+                            getEmojis(1, 1) : 
+                            getEmojis(cat.stats?.questionCount || 0, 4)}
                     </div>
                 )
             default:
