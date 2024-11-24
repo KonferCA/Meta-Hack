@@ -105,7 +105,7 @@ async def query_grok(content: str) -> str:
         "model": "llama3-groq-8b-8192-tool-use-preview",
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 5
+        "max_tokens": 4096
     }
     
     headers = {

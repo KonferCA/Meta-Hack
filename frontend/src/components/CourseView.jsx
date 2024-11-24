@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useAuth } from '../contexts/AuthContext'
+import { motion, AnimatePresence } from 'framer-motion'
+import { FiHelpCircle, FiAlertTriangle, FiBook, FiArrowRight, FiArrowLeft, FiCheckCircle } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
@@ -10,8 +12,21 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import QuizModal from './QuizModal'
 import QuizResults from './QuizResults'
-import { FiHelpCircle, FiAlertTriangle } from 'react-icons/fi'
-import { motion, AnimatePresence } from 'framer-motion'
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.1
+        }
+    }
+}
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+}
 
 export default function CourseView() {
     const { courseId } = useParams({ from: '/course/$courseId' })
@@ -127,90 +142,199 @@ export default function CourseView() {
         }
     }
 
-    if (!course) return <div>Loading...</div>
+    if (!course) return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-blue-50 flex justify-center items-center">
+            <div className="w-16 h-16 relative">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-100"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+            </div>
+        </div>
+    )
 
     return (
-        <div className="flex min-h-screen">
-            {/* sidebar with section navigation */}
-            <div className="w-64 bg-gray-100 p-4 border-r">
-                <h2 className="text-xl font-bold mb-4">{course.title}</h2>
-                <div className="space-y-2">
-                    {sections.map(section => (
-                        <div 
-                            key={section.id}
-                            onClick={() => handleSectionClick(section)}
-                            className={`
-                                p-2 rounded cursor-pointer
-                                ${currentSection?.id === section.id ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'}
-                                ${progress[section.id]?.completed ? 'border-l-4 border-green-500' : ''}
-                            `}
-                        >
-                            {section.title}
-                        </div>
-                    ))}
-                    
-                    {/* quiz button */}
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-blue-50">
+            <div className="flex">
+                {/* sidebar with section navigation */}
+                <motion.div 
+                    initial={{ x: -50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className="w-80 bg-white shadow-lg p-6 min-h-screen sticky top-0"
+                >
+                    <div className="mb-8">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h2>
+                        <div className="h-1 w-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+                    </div>
+
+                    <div className="space-y-2">
+                        {sections.map(section => (
+                            <motion.div 
+                                key={section.id}
+                                whileHover={{ x: 4 }}
+                                onClick={() => handleSectionClick(section)}
+                                className={`
+                                    p-4 rounded-xl cursor-pointer transition-all
+                                    ${currentSection?.id === section.id 
+                                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg' 
+                                        : 'hover:bg-gray-50'
+                                    }
+                                    ${progress[section.id]?.completed ? 'border-l-4 border-green-500' : ''}
+                                `}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium">{section.title}</span>
+                                    {progress[section.id]?.completed && (
+                                        <FiCheckCircle className="text-green-500" />
+                                    )}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+
                     <motion.button
                         onClick={() => handleQuizButtonClick()}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        className="mt-6 w-full p-3 bg-gradient-to-r from-purple-500 to-indigo-600 
-                            text-white rounded-lg shadow-md hover:shadow-lg transition-all"
+                        className="mt-8 w-full p-4 bg-gradient-to-r from-purple-500 to-pink-500 
+                            text-white rounded-xl shadow-md hover:shadow-lg transition-all
+                            flex items-center justify-center group"
                     >
                         Take Final Quiz
+                        <FiArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
                     </motion.button>
+                </motion.div>
+
+                {/* main content area */}
+                <div className="flex-1 p-8 max-w-4xl mx-auto">
+                    <motion.div
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="visible"
+                    >
+                        {currentSection ? (
+                            <motion.div variants={itemVariants}>
+                                <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+                                    <h2 className="text-3xl font-bold text-gray-900 mb-6">
+                                        {currentSection.title}
+                                    </h2>
+                                    
+                                    {currentSection.pages && currentSection.pages[currentPage] && (
+                                        <div className="prose prose-slate max-w-none">
+                                            <ReactMarkdown 
+                                                remarkPlugins={[remarkGfm, remarkMath]}
+                                                rehypePlugins={[rehypeRaw, rehypeKatex]}
+                                                className="markdown-content"
+                                            >
+                                                {currentSection.pages[currentPage].content}
+                                            </ReactMarkdown>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* pagination controls */}
+                                <div className="flex justify-between items-center mt-8">
+                                    <motion.button 
+                                        onClick={handlePrevPage}
+                                        disabled={currentPage === 0}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="flex items-center px-6 py-3 bg-white rounded-xl shadow-md
+                                            disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg
+                                            transition-all group"
+                                    >
+                                        <FiArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
+                                        Previous
+                                    </motion.button>
+                                    
+                                    <span className="text-gray-600 font-medium">
+                                        Page {currentPage + 1} of {currentSection.pages?.length || 1}
+                                    </span>
+                                    
+                                    <motion.button 
+                                        onClick={handleNextPage}
+                                        disabled={!currentSection.pages || currentPage >= currentSection.pages.length - 1}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="flex items-center px-6 py-3 bg-white rounded-xl shadow-md
+                                            disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg
+                                            transition-all group"
+                                    >
+                                        Next
+                                        <FiArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                    </motion.button>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <motion.div 
+                                variants={itemVariants}
+                                className="bg-white rounded-2xl shadow-lg p-12 text-center"
+                            >
+                                <FiBook className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                                    Select a section to begin
+                                </h3>
+                                <p className="text-gray-600">
+                                    Choose a section from the sidebar to start learning
+                                </p>
+                            </motion.div>
+                        )}
+                    </motion.div>
                 </div>
             </div>
 
-            {/* confirmation modal */}
+            {/* quiz confirmation modal */}
             <AnimatePresence>
                 {showQuizConfirm && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl"
+                            className="bg-white rounded-2xl p-8 max-w-md w-full shadow-xl"
                         >
                             <div className="text-center mb-6">
                                 <div className="bg-yellow-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <FiAlertTriangle className="w-8 h-8 text-yellow-500" />
                                 </div>
-                                <h3 className="text-xl font-bold text-gray-800">Are you sure?</h3>
-                                <p className="text-gray-600 mt-2">
+                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Are you sure?</h3>
+                                <p className="text-gray-600">
                                     You haven't viewed all sections yet. It's recommended to review all material before taking the quiz.
                                 </p>
                             </div>
                             
-                            <div className="flex gap-3">
-                                <button
+                            <div className="flex gap-4">
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
                                     onClick={() => setShowQuizConfirm(false)}
-                                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg
-                                        hover:bg-purple-700 transition-colors"
+                                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500
+                                        text-white rounded-xl shadow-md hover:shadow-lg transition-all"
                                 >
                                     Review Material
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
                                     onClick={() => {
                                         setShowQuizConfirm(false)
                                         handleQuizStart(currentSection.id)
                                     }}
-                                    className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg
-                                        hover:bg-gray-900 transition-colors"
+                                    className="flex-1 px-6 py-3 bg-gradient-to-r from-gray-700 to-gray-900
+                                        text-white rounded-xl shadow-md hover:shadow-lg transition-all"
                                 >
                                     Take Quiz Anyway
-                                </button>
+                                </motion.button>
                             </div>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
+            {/* quiz modal */}
             {/* main content area with pagination */}
             <div className="flex-1 p-8">
                 {currentSection ? (

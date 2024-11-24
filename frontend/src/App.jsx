@@ -54,13 +54,13 @@ const courseManageRoute = new Route({
 
 const studentDashboardRoute = new Route({
     getParentRoute: () => rootRoute,
-    path: 'dashboard/student',
+    path: 'dashboard',
     component: StudentDashboard,
 })
 
 const professorDashboardRoute = new Route({
     getParentRoute: () => rootRoute,
-    path: 'dashboard/professor',
+    path: 'dashboard',
     component: ProfessorDashboard,
 })
 
