@@ -4,6 +4,7 @@ from config import Config
 from typing import AsyncGenerator
 from huggingface_hub import login
 from lora import fine_tune_and_save_lora_weights, apply_lora_weights_to_model
+from rl_model import RLModel
 
 def load_base_model():
     # Load tokenizer
@@ -48,12 +49,15 @@ def generate_initial_note(page_content, model, tokenizer):
     return final_output
 
 def generate_note(page_content, note_content, model, tokenizer):
-    inputs = tokenizer(f"I did not like this note: {note_content}. Generate new notes for the given content: {page_content}", return_tensors="pt")
-    outputs = model.generate(**inputs)
-    final_output = ""
-    for output in outputs:
-        final_output += tokenizer.decode(output, skip_special_tokens=True)
-    return final_output
+    if isinstance(model, RLModel):
+        state = model.get_state(page_content, note_content)
+        outputs = model.act(state)
+        return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    else:
+        # fallback to original implementation
+        inputs = tokenizer(f"I did not like this note: {note_content}. Generate new notes for the given content: {page_content}", return_tensors="pt")
+        outputs = model.generate(**inputs)
+        return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
 def generate_quiz_review(origin_content, wrong_questions, model, tokenizer):
     inputs = tokenizer(f"I generated note based on this content: {origin_content} and I got these questions wrong: {wrong_questions}. Help me to generate review based on wrong questions", return_tensors="pt")
