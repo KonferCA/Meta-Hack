@@ -26,6 +26,9 @@ import PyPDF2
 import logging
 from jose import JWTError, jwt  # replace the existing jwt import
 
+import tempfile
+import json
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -302,35 +305,90 @@ async def create_course(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # verify user is professor
-    if current_user.role != UserRole.PROFESSOR:
-        raise HTTPException(
-            status_code=403,
-            detail="Only professors can create courses"
-        )
-    
     try:
-        # create course
+        # generate course details using Grok
+        course_details = await generate_course_details(title, description)
+        logger.debug(f"Generated course details: {course_details}")
+        
+        # create course with generated details
         course = Course(
             title=title,
             description=description,
-            professor_id=current_user.id
+            professor_id=current_user.id,
+            difficulty=course_details['difficulty'],
+            estimated_hours=course_details['estimated_hours'],
+            learning_outcomes=course_details['learning_outcomes'],
+            prerequisites=course_details['prerequisites'],
+            skills_gained=course_details['skills_gained'],
+            course_highlights=course_details['course_highlights']
         )
         db.add(course)
         db.commit()
         db.refresh(course)
+
+        # generate content and quiz using Grok
+        content_text = await query_grok(f"Generate a detailed lesson about {title}")
+        logger.debug(f"Generated content: {content_text}")
         
-        # process uploaded content
-        # ... content processing logic here ...
+        quiz_data = await generate_quiz(content_text)
+        logger.debug(f"Generated quiz: {quiz_data}")
+
+        # create section
+        section = Section(
+            course_id=course.id,
+            title="Introduction",
+            order=1
+        )
+        db.add(section)
+        db.commit()
+
+        # create page with generated content
+        page = Page(
+            section_id=section.id,
+            course_id=course.id,
+            content=content_text,
+            order=1
+        )
+        db.add(page)
+        
+        # create quiz with generated questions
+        if quiz_data:
+            quiz = Quiz(
+                section_id=section.id,
+                course_id=course.id
+            )
+            db.add(quiz)
+            db.commit()
+            
+            for q_data in quiz_data:
+                question = QuizQuestion(
+                    quiz_id=quiz.id,
+                    question=q_data['question'],
+                    correct_answer=q_data['correctAnswer']
+                )
+                db.add(question)
+                db.commit()
+                
+                for option in q_data['options']:
+                    choice = QuizQuestionChoice(
+                        question_id=question.id,
+                        content=option
+                    )
+                    db.add(choice)
+        
+        db.commit()
         
         return {
             "id": course.id,
             "title": course.title,
             "description": course.description,
-            "professor_id": course.professor_id
+            "professor_id": course.professor_id,
+            "difficulty": course.difficulty,
+            "estimated_hours": course.estimated_hours
         }
         
     except Exception as e:
+        logger.exception("Error creating course")
         db.rollback()
         raise HTTPException(
             status_code=500,

@@ -9,15 +9,17 @@ import ProfessorDashboard from './components/ProfessorDashboard'
 import CourseManage from './components/CourseManage'
 import Login from './components/Login'
 import Register from './components/Register'
+import Landing from './components/Landing'
+import Layout from './components/Layout'
 
 const rootRoute = new RootRoute({
-    component: Root,
+    component: Layout,
 })
 
 const indexRoute = new Route({
     getParentRoute: () => rootRoute,
     path: '/',
-    component: Login,
+    component: Landing,
 })
 
 const loginRoute = new Route({
