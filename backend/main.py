@@ -781,64 +781,30 @@ class FeedbackCreate(BaseModel):
 
 @app.post("/feedback")
 async def feedback(fb: FeedbackCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    resp = {
-        "message": ""
-    }
-
-    if fb.message is None:
-        if fb.like:
-            fb.message = "I like this note's explanation. Try to use the similar explanation methods for similar topics."
-
-    # store feedback
-    new_fb = models.Feedback(
-        student_id=current_user.id,
-        note_id=fb.note_id,
-        like=fb.like,
-        message=fb.message
-    )
-    db.add(new_fb)
-    db.commit()
-
-    if not fb.like:
-        if os.path.exists(os.path.join(f"./user_{current_user.id}/lora_weights")):
-            model, tokenizer = load_user_model(current_user.id)
-        else:
-            model, tokenizer = load_base_model()
-        old_note = db.query(models.Note).filter(models.Note.id == fb.note_id).first()
-        page = db.query(models.Page).filter(models.Page.id == old_note.page_id).first()
-        if page is None:
-            raise HTTPException(status_code=500, detail="Feedback done for a page note that doesn't exists")
-        note = generate_note(page.content, old_note.content, model, tokenizer)
-        new_page = models.Note(
-            student_id=current_user.id,
-            page_id=page.id,
-            content=note,
-        )
-        db.add(new_page)
-        db.commit()
-        resp['message'] = note
-    else:
-        # get all feedback from db and format for fine tuning
-        feedbacks = db.query(models.Feedback).filter(models.User.id == current_user.id).all()
-        input = []
-        for feedback in feedbacks:
-            note = db.query(models.Note).filter(models.Note.id == feedback.note_id).first()
-            if note is None:
-                continue
-            page = db.query(models.Page).filter(models.Page.id == note.page_id).first()
-            if page is None:
-                continue
-            input.append({
-                "input": f"Generate notes for the given content: {page.content}",
-                "output": note.content,
-                "feedback": "like" if feedback.like is not None and feedback.like == True else "dislike"
-            })
-        fine_tune_model(current_user.id, input)
-        db.query(models.Feedback).delete(models.Feedback.student_id == current_user.id)
-        db.commit()
-
-    return resp
-
+    # turn feedback into a number lol
+    reward = 1.0 if fb.like else -1.0
+    
+    # grab the stuff we need
+    note = db.query(models.Note).filter(models.Note.id == fb.note_id).first()
+    page = db.query(models.Page).filter(models.Page.id == note.page_id).first()
+    
+    # get the rl model
+    rl_model = load_rl_model(current_user.id)
+    
+    # what's happening rn
+    state = rl_model.get_state(page.content, note.content)
+    
+    # remember this for later
+    next_state = None
+    rl_model.remember(state, note.content, reward, next_state)
+    
+    # learn from the past
+    rl_model.replay()
+    
+    # save it
+    save_rl_model(current_user.id, rl_model)
+    
+    return {"status": "success"}
 @app.post("/quizzes/{quiz_id}/submit")
 async def submit_quiz(
     quiz_id: int,
