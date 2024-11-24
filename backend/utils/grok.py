@@ -12,13 +12,11 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROK_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 async def query_grok(prompt: str) -> str:
     try:
-        api_key = os.environ.get('GROQ_API_KEY')
+        api_key = GROQ_API_KEY
         if not api_key:
-            print("Warning: GROQ_API_KEY not found in environment variables")
+            print("warning: groq_api_key not found")
             return "Error: Missing API key"
             
-        print(f"Using GROQ API key: {os.environ.get('GROQ_API_KEY')[:10]}...")
-        
         messages = [
             {
                 "role": "system",
@@ -143,7 +141,7 @@ async def query_grok_quiz(content: str) -> str:
     try:
         api_key = GROQ_API_KEY
         if not api_key:
-            print("Warning: GROQ_API_KEY not found in environment variables")
+            print("warning: groq_api_key not found")
             return "Error: Missing API key"
             
         words = content.split()
