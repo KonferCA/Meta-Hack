@@ -36,6 +36,9 @@ import asyncio  # Add this at the top
 
 from generate_answer import generate_initial_note, load_base_model, load_user_model, generate_note, fine_tune_model
 
+from dotenv import load_dotenv
+load_dotenv()  # make sure this runs before any API calls
+
 # setup logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
