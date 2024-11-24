@@ -3,6 +3,7 @@ import torch
 from config import Config
 from huggingface_hub import login
 import asyncio
+from typing import AsyncGenerator
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"API Using Device: {device}")
