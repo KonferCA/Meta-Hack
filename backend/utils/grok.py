@@ -139,113 +139,63 @@ async def process_pdf_content(content: str) -> str:
     return summary
 
 async def query_grok_quiz(content: str) -> str:
-    words = content.split()
-    max_words = 100  # ~10 pages
-    truncated_content = ' '.join(words[:max_words])
-    
-    messages = [
-        {
-            "role": "system",
-            "content": """You are an expert quiz generator for educational content. 
-            Generate multiple choice questions that test understanding of key concepts.
+    try:
+        api_key = os.environ.get('GROQ_API_KEY')
+        if not api_key:
+            print("Warning: GROQ_API_KEY not found in environment variables")
+            return "Error: Missing API key"
             
-            IMPORTANT: Return your response as a SINGLE JSON array containing EXACTLY 4 questions. Example format:
-            [
-                {
-                    "question": "What is the derivative of x^2?",
-                    "options": ["x", "2x", "2", "x^2"],
-                    "correctAnswer": 1
-                },
-                {
-                    "question": "What is the integral of 2x dx?",
-                    "options": ["x^2", "x^2 + C", "2x^2", "2x^2 + C"],
-                    "correctAnswer": 2
-                }
-            ]
-
-            Critical Rules:
-            1. Generate ONLY ONE array with EXACTLY 4 questions
-            2. DO NOT include any comments in the JSON
-            3. correctAnswer must be 0, 1, 2, or 3 matching the index of the correct option
-            4. Each question must have exactly 4 options
-            5. Use proper JSON formatting without comments or trailing commas
-            6. DO NOT add any text before or after the JSON array"""
-        },
-        {
-            "role": "user",
-            "content": f"Generate ONE array of 4 quiz questions for this content:\n\n{truncated_content}"
-        }
-    ]
-    
-    payload = {
-        "model": "llama3-groq-70b-8192-tool-use-preview",
-        "messages": messages,
-        "temperature": 0.7,  # lower temperature for more consistent output
-        "max_tokens": 4096   # reduced since quiz responses are shorter
-    }
-    
-    headers = {
-        "Authorization": f"Bearer {GROK_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                response_content = data['choices'][0]['message']['content']
-                print("Raw quiz response:", response_content)
+        words = content.split()
+        max_words = 100  # ~10 pages
+        truncated_content = ' '.join(words[:max_words])
+        
+        messages = [
+            {
+                "role": "system",
+                "content": """You are an expert quiz generator for educational content. 
+                Generate multiple choice questions that test understanding of key concepts.
                 
-                try:
-                    # Clean the response
-                    cleaned_content = re.sub(r'\s*//.*$', '', response_content, flags=re.MULTILINE)
-                    cleaned_content = re.sub(r',\s*([}\]])', r'\1', cleaned_content)
-                    
-                    # Parse JSON once
-                    questions = json.loads(cleaned_content)
-                    print(f"Parsed questions: {questions}")
-                    
-                    # Validate questions
-                    if not isinstance(questions, list):
-                        raise Exception("Response must be a list")
-                        
-                    cleaned_questions = []
-                    for i, q in enumerate(questions[:4]):
-                        print(f"Validating question {i + 1}")
-                        if not all(key in q for key in ['question', 'options', 'correctAnswer']):
-                            continue
-                            
-                        if not isinstance(q['options'], list):
-                            continue
-                            
-                        # Truncate options to 4 if needed
-                        if len(q['options']) > 4:
-                            correct_option = q['options'][q['correctAnswer']]
-                            q['options'] = q['options'][:4]
-                            if correct_option not in q['options']:
-                                q['options'][-1] = correct_option
-                            q['correctAnswer'] = q['options'].index(correct_option)
-                        elif len(q['options']) < 4:
-                            continue
-                            
-                        if not isinstance(q['correctAnswer'], int) or q['correctAnswer'] not in range(4):
-                            continue
-                            
-                        cleaned_questions.append(q)
-                    
-                    if not cleaned_questions:
-                        raise Exception("No valid questions found")
-                        
-                    # Return the cleaned questions directly
-                    return cleaned_questions[:4]
-                    
-                except json.JSONDecodeError as e:
-                    print(f"Failed to parse quiz JSON: {e}")
-                    print(f"Cleaned response: {cleaned_content}")
-                    raise Exception("Failed to parse quiz response")
-            else:
-                error_text = await response.text()
-                raise Exception(f"Failed to query GROK API: {error_text}")
+                IMPORTANT: Return your response as a SINGLE JSON array containing EXACTLY 4 questions. Example format:
+                [
+                    {
+                        "question": "What is the derivative of x^2?",
+                        "options": ["x", "2x", "2", "x^2"],
+                        "correctAnswer": 1
+                    },
+                    ...
+                ]"""
+            },
+            {
+                "role": "user",
+                "content": f"Generate ONE array of 4 quiz questions for this content:\n\n{truncated_content}"
+            }
+        ]
+        
+        payload = {
+            "model": "llama3-groq-70b-8192-tool-use-preview",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 4096
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    response_content = data['choices'][0]['message']['content']
+                    print("Raw quiz response:", response_content)
+                    return response_content
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"Failed to query GROK API: {error_text}")
+    except Exception as e:
+        print(f"Failed to generate quiz: {e}")
+        return "Error: Failed to generate quiz"
 
 async def generate_quiz(content: list[tuple[str, str]], progress_callback=None) -> list:
     try:
