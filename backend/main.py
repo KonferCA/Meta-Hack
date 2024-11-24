@@ -979,8 +979,12 @@ async def enroll_in_course(
 
 @app.get("/course/{course_id}/notes")
 async def get_notes_progress(course_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    items = db.query(models.Page).filter(models.Page.course_id == course_id).join(models.Note.student_id == current_user.id and models.Page.course_id == course_id).all()
-    return { "items": items }
+    pages = db.query(models.Page).filter(models.Page.course_id == course_id).all()
+    notes = []
+    for page in pages:
+        note = db.query(models.Note).filter(models.Note.student_id == current_user.id and models.Note.page_id == page.id).first()
+        notes.append(note)
+    return { "notes": notes }
 
 @app.post("/quizzes/{quiz_id}/review/feedback")
 async def submit_review_feedback(
