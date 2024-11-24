@@ -23,12 +23,12 @@ model_id = Config.MODEL_NAME
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-# model = AutoModelForCausalLM.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
-model = MllamaForConditionalGeneration.from_pretrained(
-        model_id,
-        torch_dtype=torch.bfloat16,
-        device_map="auto"
-)
+model = AutoModelForCausalLM.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN, device_map="auto")
+# model = MllamaForConditionalGeneration.from_pretrained(
+#         model_id,
+#         torch_dtype=torch.bfloat16,
+#         device_map="auto"
+# )
 
 dataset = load_dataset("imdb", split="train")
 
