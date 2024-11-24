@@ -59,8 +59,8 @@ app = FastAPI()
 # configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # frontend URL
-    # allow_credentials=True,
+    allow_origins=["http://localhost:5173"],  # frontend URL
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -723,6 +723,29 @@ async def create_section(
     
     return section
 
+@app.get('/seed')
+async def seed(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    course = models.Course(
+        title="a",
+        description = "desc",
+        professor_id = current_user.id,
+    )
+    db.add(course)
+    section = models.Section(
+        title="b",
+        order=0,
+        course_id=course.id,
+    )
+    db.add(section)
+    page = models.Page(
+        contetn="Some content about Linear Algebra",
+        order=0,
+        section_id=section.id,
+    )
+    db.add(page)
+    db.commit()
+    return
+
 # one route to give feedback
 class FeedbackCreate(BaseModel):
     note_id: int
@@ -826,7 +849,7 @@ async def submit_quiz(
         if is_correct:
             correct_answers += 1
         else:
-            wrong_questions = f"{question}\n"
+            wrong_questions += f"{question}\n"
             
         questions_results.append({
             "id": question.id,
