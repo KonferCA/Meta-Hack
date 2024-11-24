@@ -334,64 +334,6 @@ export default function CourseView() {
                 )}
             </AnimatePresence>
 
-            {/* quiz modal */}
-            {/* main content area with pagination */}
-            <div className="flex-1 p-8">
-                {currentSection ? (
-                    <div>
-                        <h2 className="text-2xl font-bold mb-4">{currentSection.title}</h2>
-                        
-                        {/* page content with markdown and latex rendering */}
-                        {currentSection.pages && currentSection.pages[currentPage] && (
-                            <div className="prose prose-slate max-w-none mb-8">
-                                <ReactMarkdown 
-                                    remarkPlugins={[remarkGfm, remarkMath]}
-                                    rehypePlugins={[rehypeRaw, rehypeKatex]}
-                                    className="markdown-content"
-                                >
-                                    {currentSection.pages[currentPage].content}
-                                </ReactMarkdown>
-                            </div>
-                        )}
-                        
-                        {/* pagination controls */}
-                        <div className="flex justify-between items-center mt-8">
-                            <button 
-                                onClick={handlePrevPage}
-                                disabled={currentPage === 0}
-                                className="bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-300"
-                            >
-                                Previous Page
-                            </button>
-                            
-                            <span className="text-gray-600">
-                                Page {currentPage + 1} of {currentSection.pages?.length || 1}
-                            </span>
-                            
-                            <button 
-                                onClick={handleNextPage}
-                                disabled={!currentSection.pages || currentPage >= currentSection.pages.length - 1}
-                                className="bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-300"
-                            >
-                                Next Page
-                            </button>
-                        </div>
-
-                        {showQuiz && quiz && (
-                            <QuizModal 
-                                quiz={quiz}
-                                onClose={() => setShowQuiz(false)}
-                                onComplete={handleQuizComplete}
-                            />
-                        )}
-                    </div>
-                ) : (
-                    <div className="text-center text-gray-500">
-                        Select a section to view its content
-                    </div>
-                )}
-            </div>
-
             {/* Add QuizResults modal */}
             {quizResults && (
                 <QuizResults 
