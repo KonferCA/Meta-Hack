@@ -23,8 +23,18 @@ pip install -r requirements.txt
 echo "Removing existing database..."
 rm -f sql_app.db
 
+# create or update .env file
+echo "Creating/updating .env file..."
+cat > .env << EOL
+SECRET_KEY="your-secret-key-here"
+GROQ_API_KEY="${GROQ_API_KEY}"
+USE_GROQ=true
+EOL
+
 # set environment variables
-export SECRET_KEY="your-secret-key-here"  # replace with actual secret from GitHub secrets
+export SECRET_KEY="your-secret-key-here"
+export GROQ_API_KEY="${GROQ_API_KEY}"
+export USE_GROQ=true
 
 # start the server in the background
 echo "Starting server..."
