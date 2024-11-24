@@ -31,13 +31,13 @@ class EfficientPerUserTrainer:
         self.device = device
         
         # Load tokenizer
-        self.tokenizer = LlamaTokenizer.from_pretrained(base_model_path, use_auth_token=use_auth)
+        self.tokenizer = LlamaTokenizer.from_pretrained(self.base_model_path, use_auth_token=use_auth)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             
         # Load model in 8-bit to reduce memory usage
         self.base_model = LlamaForCausalLM.from_pretrained(
-            base_model_path,
+            self.base_model_path,
             load_in_8bit=True,
             device_map="auto",
             torch_dtype=torch.float16,
