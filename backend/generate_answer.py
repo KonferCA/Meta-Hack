@@ -11,7 +11,7 @@ def load_base_model():
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME, 
     token=Config.HUGGINGFACE_ACCESS_TOKEN, 
-    max_new_tokens=300).to(device)
+    max_new_tokens=300)
         
     # Load model in 8-bit to reduce memory usage
     base_model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, 
@@ -45,7 +45,8 @@ def get_device():
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 def generate_initial_note(page_content, model, tokenizer):
-    inputs = tokenizer(f"Generate notes for the given content: {page_content}", return_tensors="pt")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    inputs = tokenizer(f"Generate notes for the given content: {page_content}", return_tensors="pt").to(device)
     outputs = model.generate(
         **inputs,
         max_length=2048,
@@ -55,7 +56,7 @@ def generate_initial_note(page_content, model, tokenizer):
     )
     final_output = ""
     for output in outputs:
-        final_output += tokenizer.decode(output, skip_special_tokens=True)
+        final_output += tokenizer.decode(output, skip_special_tokens=True).to(device)
     return final_output
 
 def generate_note(page_content, note_content, model, tokenizer):
