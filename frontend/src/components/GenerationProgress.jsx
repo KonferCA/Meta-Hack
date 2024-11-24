@@ -6,6 +6,7 @@ import { FiBook, FiClipboard, FiHelpCircle } from 'react-icons/fi'
 export default function GenerationProgress({ progress, courseId }) {
     const navigate = useNavigate()
     const [showSuccess, setShowSuccess] = useState(false)
+    const [highestContentPercentage, setHighestContentPercentage] = useState(0)
     
     // check if all tasks are completed
     const isAllCompleted = 
@@ -141,10 +142,25 @@ export default function GenerationProgress({ progress, courseId }) {
                     </div>
                 )
             case 'Course Content':
+                // update highest percentage if new percentage is higher
+                if (cat.stats?.percentage > highestContentPercentage) {
+                    setHighestContentPercentage(cat.stats.percentage)
+                }
+
                 return (
                     <div className="space-y-2">
                         {cat.stats?.step && (
                             <p className="text-sm text-gray-600 text-center">{cat.stats.step}</p>
+                        )}
+                        {cat.stats?.percentage !== undefined && (
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <motion.div
+                                    className="h-full bg-blue-500"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${Math.max(cat.stats.percentage, highestContentPercentage)}%` }}
+                                    transition={{ duration: 0.3 }}
+                                />
+                            </div>
                         )}
                         {getEmojis(cat.stats?.pageCount || 0, cat.stats?.totalPages || 24)}
                     </div>
