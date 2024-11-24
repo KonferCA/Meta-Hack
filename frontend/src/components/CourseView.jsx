@@ -10,6 +10,8 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import QuizModal from './QuizModal'
 import QuizResults from './QuizResults'
+import { FiHelpCircle, FiAlertTriangle } from 'react-icons/fi'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function CourseView() {
     const { courseId } = useParams({ from: '/course/$courseId' })
@@ -23,6 +25,7 @@ export default function CourseView() {
     const [quiz, setQuiz] = useState(null)
     const [showQuiz, setShowQuiz] = useState(false)
     const [quizResults, setQuizResults] = useState(null)
+    const [showQuizConfirm, setShowQuizConfirm] = useState(false)
 
     useEffect(() => {
         const fetchCourse = async () => {
@@ -111,6 +114,19 @@ export default function CourseView() {
         setQuiz(null)
     }
 
+    const handleQuizButtonClick = () => {
+        // check if current section is completed
+        const allSectionsViewed = sections.every(section => 
+            progress[section.id]?.viewed
+        )
+        
+        if (!allSectionsViewed) {
+            setShowQuizConfirm(true)
+        } else {
+            handleQuizStart(currentSection.id)
+        }
+    }
+
     if (!course) return <div>Loading...</div>
 
     return (
@@ -132,8 +148,68 @@ export default function CourseView() {
                             {section.title}
                         </div>
                     ))}
+                    
+                    {/* quiz button */}
+                    <motion.button
+                        onClick={() => handleQuizButtonClick()}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="mt-6 w-full p-3 bg-gradient-to-r from-purple-500 to-indigo-600 
+                            text-white rounded-lg shadow-md hover:shadow-lg transition-all"
+                    >
+                        Take Final Quiz
+                    </motion.button>
                 </div>
             </div>
+
+            {/* confirmation modal */}
+            <AnimatePresence>
+                {showQuizConfirm && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl"
+                        >
+                            <div className="text-center mb-6">
+                                <div className="bg-yellow-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <FiAlertTriangle className="w-8 h-8 text-yellow-500" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-800">Are you sure?</h3>
+                                <p className="text-gray-600 mt-2">
+                                    You haven't viewed all sections yet. It's recommended to review all material before taking the quiz.
+                                </p>
+                            </div>
+                            
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowQuizConfirm(false)}
+                                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg
+                                        hover:bg-purple-700 transition-colors"
+                                >
+                                    Review Material
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowQuizConfirm(false)
+                                        handleQuizStart(currentSection.id)
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg
+                                        hover:bg-gray-900 transition-colors"
+                                >
+                                    Take Quiz Anyway
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* main content area with pagination */}
             <div className="flex-1 p-8">
@@ -176,16 +252,6 @@ export default function CourseView() {
                                 Next Page
                             </button>
                         </div>
-                        
-                        {/* quiz button - only show on last page */}
-                        {currentPage === (currentSection.pages?.length - 1) && (
-                            <button 
-                                onClick={() => handleQuizStart(currentSection.id)}
-                                className="mt-8 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                            >
-                                Take Quiz
-                            </button>
-                        )}
 
                         {showQuiz && quiz && (
                             <QuizModal 
