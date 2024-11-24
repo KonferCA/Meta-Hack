@@ -38,3 +38,14 @@ def fine_tune_model(user_id, data):
 
 def get_device():
     return "cuda" if torch.cuda.is_available() else "cpu"
+
+def generate_initial_note(page_content, model, tokenizer):
+    inputs = tokenizer(f"Generate notes for the given content: {page_content}", return_tensors="pt")
+    outputs = model.generate(**inputs)
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+def generate_note(page_content, note_content, model, tokenizer):
+    inputs = tokenizer(f"I did not like this note: {note_content}. Generate new notes for the given content: {page_content}", return_tensors="pt")
+    outputs = model.generate(**inputs)
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+

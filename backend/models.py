@@ -90,7 +90,7 @@ class Page(Base):
     __tablename__ = "pages"
 
     id = Column(Integer, primary_key=True, index=True)
-    content = Column(String)
+    content = Column(String, nullable=False)
     order = Column(Integer)
     section_id = Column(Integer, ForeignKey("sections.id"))
     course_id = Column(Integer, ForeignKey("courses.id"))
@@ -117,7 +117,7 @@ class Note(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     student_id = Column(Integer, ForeignKey("users.id"))
-    course_id = Column(Integer, ForeignKey("courses.id"))
+    page_id = Column(Integer, ForeignKey("pages.id"))
     content = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

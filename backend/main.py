@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from scipy.stats import studentized_range
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
@@ -32,6 +33,8 @@ import json
 from sse_starlette.sse import EventSourceResponse
 
 import asyncio  # Add this at the top
+
+from generate_answer import generate_initial_note, load_base_model, load_user_model, generate_note, fine_tune_model
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -713,11 +716,42 @@ async def feedback(fb: FeedbackCreate, current_user: User = Depends(get_current_
     db.commit()
 
     if not fb.like:
-        # TODO: call model to generate new note
-        pass
+        if os.path.exists(os.path.join(f"./user_{current_user.id}/lora_weights")):
+            model, tokenizer = load_user_model(current_user.id)
+        else:
+            model, tokenizer = load_base_model()
+        page = db.query(models.Page).filter(models.Page.id == fb.note_id).first()
+        if page is None:
+            raise HTTPException(status_code=500, detail="Feedback done for a page note that doesn't exists")
+        old_note = db.query(models.Note).filter(models.Note.id == fb.note_id).first()
+        note = generate_note(page.content, old_note.content, model, tokenizer)
+        new_page = models.Note(
+            student_id=current_user.id,
+            page_id=page.id,
+            content=note,
+        )
+        db.add(new_page)
+        db.commit()
+        resp['message'] = note
     else:
-        # TODO: start using feedback to fine tune user model
-        pass
+        # get all feedback from db and format for fine tuning
+        feedbacks = db.query(models.Feedback).filter(models.User.id == current_user.id).all()
+        input = []
+        for feedback in feedbacks:
+            note = db.query(models.Note).filter(models.Note.id == feedback.note_id).first()
+            if note is None:
+                continue
+            page = db.query(models.Page).filter(models.Page.id == note.page_id).first()
+            if page is None:
+                continue
+            input.append({
+                "input": f"Generate notes for the given content: {page.content}",
+                "output": note.content,
+                "feedback": "like" if feedback.like is not None and feedback.like == True else "dislike"
+            })
+        fine_tune_model(current_user.id, input)
+        db.query(models.Feedback).delete(models.Feedback.student_id == current_user.id)
+        db.commit()
 
     return resp
 
@@ -860,6 +894,23 @@ async def enroll_in_course(
     db.add(enrollment)
     db.commit()
     db.refresh(enrollment)
+
+    # generate initial notes
+    pages = db.query(models.Page).filter(models.Page.course_id == course_id).all()
+    if os.path.exists(os.path.join(f"./user_{current_user.id}/lora_weights")):
+        model, tokenizer = load_user_model(current_user.id)
+    else:
+        model, tokenizer = load_base_model()
+    for page in pages:
+        note = generate_initial_note(page.content, model, tokenizer)
+        n = models.Note(
+            page_id=page.id,
+            student_id=current_user.id,
+            content=note
+        )
+        db.add(n)
+    db.commit()
+
     
     return {"message": "Successfully enrolled in course"}
 
