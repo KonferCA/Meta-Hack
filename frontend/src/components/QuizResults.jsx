@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FiXCircle, FiCheck, FiX } from 'react-icons/fi'
 import ReactConfetti from 'react-confetti'
 import { useState, useEffect } from 'react'
+import QuizReview from './QuizReview'
 
 export default function QuizResults({ result, onClose }) {
     // add window size state for confetti
@@ -21,6 +22,8 @@ export default function QuizResults({ result, onClose }) {
         window.addEventListener('resize', handleResize)
         return () => window.removeEventListener('resize', handleResize)
     }, [])
+
+    const [showReview, setShowReview] = useState(false)
 
     return (
         <AnimatePresence>
@@ -159,9 +162,26 @@ export default function QuizResults({ result, onClose }) {
                         >
                             Close Results
                         </motion.button>
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setShowReview(true)}
+                            className="mt-4 w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 
+                                text-white rounded-xl shadow-md hover:shadow-lg transition-all"
+                        >
+                            Generate Personalized Review
+                        </motion.button>
                     </div>
                 </motion.div>
             </motion.div>
+
+            {showReview && (
+                <QuizReview 
+                    quizId={result.id} 
+                    wrongQuestions={result.questions.filter(q => !q.isCorrect)}
+                    onClose={() => setShowReview(false)}
+                />
+            )}
         </AnimatePresence>
     )
 } 
