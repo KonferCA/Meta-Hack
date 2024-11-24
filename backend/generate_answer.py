@@ -1,10 +1,27 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from config import Config
-import asyncio
 from typing import AsyncGenerator
+from huggingface_hub import login
 
-async def generate_tokens(model, tokenizer, input_text: str, max_tokens: int, temperature: float) -> AsyncGenerator[str, None]:
+if Config.HUGGINGFACE_ACCESS_TOKEN:
+    login(token=Config.HUGGINGFACE_ACCESS_TOKEN)
+use_auth = bool(Config.HUGGINGFACE_ACCESS_TOKEN)
+
+def load_base_model():
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(Config.mro, use_auth_token=use_auth)
+        
+    # Load model in 8-bit to reduce memory usage
+    base_model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, use_auth_token=use_auth)
+        
+    return base_model, tokenizer
+
+def get_device():
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+async def generate_tokens(model, tokenizer, device, input_text: str, max_tokens: int, temperature: float) -> AsyncGenerator[str, None]:
     input_ids = tokenizer.encode(input_text, return_tensors="pt").to(device)
     attention_mask = torch.ones_like(input_ids).to(device)
     past = None
