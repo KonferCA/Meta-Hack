@@ -440,8 +440,7 @@ async def get_course(
                 "pages": [
                     {
                         "id": page.id,
-                        "content": page.content,
-                        "created_at": page.created_at
+                        "content": page.content
                     } for page in section.pages
                 ]
             } for section in sections
@@ -680,6 +679,50 @@ async def get_section_quiz(
         quiz_data["questions"].append(question_data)
 
     return quiz_data
+
+@app.post("/courses/{course_id}/enroll")
+async def enroll_in_course(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # verify user is a student
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(
+            status_code=403,
+            detail="Only students can enroll in courses"
+        )
+    
+    # check if course exists
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=404,
+            detail="Course not found"
+        )
+    
+    # check if already enrolled
+    existing_enrollment = db.query(Enrollment).filter(
+        Enrollment.student_id == current_user.id,
+        Enrollment.course_id == course_id
+    ).first()
+    
+    if existing_enrollment:
+        raise HTTPException(
+            status_code=400,
+            detail="Already enrolled in this course"
+        )
+    
+    # create enrollment
+    enrollment = Enrollment(
+        student_id=current_user.id,
+        course_id=course_id
+    )
+    db.add(enrollment)
+    db.commit()
+    db.refresh(enrollment)
+    
+    return {"message": "Successfully enrolled in course"}
 
 if __name__ == "__main__":
     uvicorn.run(
