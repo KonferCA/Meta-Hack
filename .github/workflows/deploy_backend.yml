@@ -34,4 +34,8 @@ jobs:
           SSH_PASS: ${{ secrets.SSH_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'cd /home/ubuntu/backend && export GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" && bash deploy.sh'
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no ubuntu@195.242.13.94 'cd /home/ubuntu/backend && \
+          export GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" && \
+          source venv/bin/activate && \
+          pip install groq && \
+          bash deploy.sh'
