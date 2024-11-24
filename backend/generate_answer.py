@@ -42,14 +42,23 @@ def get_device():
 def generate_initial_note(page_content, model, tokenizer):
     inputs = tokenizer(f"Generate notes for the given content: {page_content}", return_tensors="pt")
     outputs = model.generate(**inputs)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    final_output = ""
+    for output in outputs:
+        final_output += tokenizer.decode(output, skip_special_tokens=True)
+    return final_output
 
 def generate_note(page_content, note_content, model, tokenizer):
     inputs = tokenizer(f"I did not like this note: {note_content}. Generate new notes for the given content: {page_content}", return_tensors="pt")
     outputs = model.generate(**inputs)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    final_output = ""
+    for output in outputs:
+        final_output += tokenizer.decode(output, skip_special_tokens=True)
+    return final_output
 
 def generate_quiz_review(origin_content, wrong_questions, model, tokenizer):
     inputs = tokenizer(f"I generated note based on this content: {origin_content} and I got these questions wrong: {wrong_questions}. Help me to generate review based on wrong questions", return_tensors="pt")
     outputs = model.generate(**inputs)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    final_output = ""
+    for output in outputs:
+        final_output += tokenizer.decode(output, skip_special_tokens=True)
+    return final_output
