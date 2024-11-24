@@ -748,7 +748,13 @@ async def seed(current_user: User = Depends(get_current_user), db: Session = Dep
     db.commit()
     db.refresh(section)
     page = models.Page(
-        content="Some content about Linear Algebra",
+        content="""
+        Stefani Joanne Angelina Germanotta[a] (born March 28, 1986), known professionally as Lady Gaga, is an American singer, songwriter and actress. Known for her image reinventions and versatility across the entertainment industry, she is an influential figure in popular music and regarded as a pop icon.
+
+After signing with Interscope Records in 2007, Gaga achieved global recognition with her debut studio album, The Fame (2008), and its reissue The Fame Monster (2009). The project scored a string of successful singles, including "Just Dance", "Poker Face", "Bad Romance", "Telephone", and "Alejandro". Gaga's five succeeding studio albums all debuted atop the US Billboard 200. Her second full-length album, Born This Way (2011), explored electronic rock and techno-pop and sold more than one million copies in the first week. Its title track became the fastest-selling song on the iTunes Store, with over one million downloads in less than a week.
+
+
+        """,
         order=0,
         section_id=section.id,
     )
