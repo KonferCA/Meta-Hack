@@ -59,11 +59,16 @@ def generate_initial_note(page_content, model, tokenizer):
         max_length=2048,
         pad_token_id=tokenizer.eos_token_id,
         num_return_sequences=1,
-        temperature=0.7
+        temperature=0.7,
+        output_scores=False,  # Exclude unnecessary scores
+        return_dict_in_generate=True,  # Return generation metadata
     )
-    final_output = ""
-    for output in outputs:
-        final_output += tokenizer.decode(output, skip_special_tokens=True)
+    
+    # Extract the generated tokens beyond the input tokens
+    generated_tokens = outputs.sequences[0][inputs['input_ids'].shape[-1]:]
+    
+    # Decode the generated tokens
+    final_output = tokenizer.decode(generated_tokens, skip_special_tokens=True)
     return final_output
 
 def generate_note(page_content, note_content, model, tokenizer):

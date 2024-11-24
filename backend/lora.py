@@ -10,7 +10,9 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
     Fine-tunes the model using the given dataset and saves the LoRA weights.
     """
     dataset = Dataset.from_list(data)
-
+    
+    # Use GPU if available
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -18,6 +20,7 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
         bnb_4bit_use_double_quant=False
     )
 
+    # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right", truncation_side="right")
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -26,10 +29,11 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
         device_map="auto",
         quantization_config=bnb_config,
         torch_dtype=torch.float16
-    )
+    ).to(device)
     model.config.pad_token_id = tokenizer.pad_token_id
     model.config.use_cache = False
 
+    # Preprocessing function
     def preprocess_function(examples):
         inputs = [f"User: {i} Bot: {o}" for i, o in zip(examples["input"], examples["output"])]
         labels = ["positive" if f == "like" else "negative" for f in examples["feedback"]]
@@ -41,6 +45,8 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
             padding="max_length",
             return_tensors="pt"
         )
+        tokenized_inputs = {key: val.to(device) for key, val in tokenized_inputs.items()}
+
         tokenized_labels = tokenizer(
             labels,
             truncation=True,
@@ -48,14 +54,17 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
             padding="max_length",
             return_tensors="pt"
         )
+        tokenized_labels = {key: val.to(device) for key, val in tokenized_labels.items()}
 
         tokenized_inputs["labels"] = tokenized_labels["input_ids"]
         return tokenized_inputs
 
     tokenized_dataset = dataset.map(preprocess_function, batched=True)
 
+    # Enable input gradients before creating PEFT model
     model.enable_input_require_grads()
 
+    # Configure LoRA
     lora_config = LoraConfig(
         r=8,
         lora_alpha=32,
@@ -66,8 +75,10 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
         inference_mode=False
     )
 
+    # Wrap the model with LoRA
     model = get_peft_model(model, lora_config)
 
+    # Training arguments
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=num_train_epochs,
@@ -84,6 +95,7 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
         optim="paged_adamw_32bit"
     )
 
+    # Trainer
     trainer = SFTTrainer(
         model=model,
         train_dataset=tokenized_dataset,
@@ -93,9 +105,9 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
         dataset_text_field="input"
     )
 
+    # Train and save the LoRA weights
     model.train()
     trainer.train()
-
     model.save_pretrained(output_dir)
     print(f"LoRA weights have been saved to {output_dir}")
 
@@ -104,6 +116,7 @@ def apply_lora_weights_to_model(base_model_name, lora_weights_dir):
     """
     Loads the base model and applies the saved LoRA weights.
     """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -111,15 +124,17 @@ def apply_lora_weights_to_model(base_model_name, lora_weights_dir):
         bnb_4bit_use_double_quant=False
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(base_model_name, max_new_tokens=8096)
+    # Load tokenizer and base model
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name, padding_side="right", truncation_side="right")
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
         device_map="auto",
         quantization_config=bnb_config,
         torch_dtype=torch.float16,
-    )
+    ).to(device)
 
-    model = PeftModel.from_pretrained(base_model, lora_weights_dir)
+    # Apply LoRA weights
+    model = PeftModel.from_pretrained(base_model, lora_weights_dir).to(device)
     model.eval()
     print(f"LoRA weights from {lora_weights_dir} have been successfully applied to the base model.")
 
@@ -159,6 +174,7 @@ def main():
     # Test the model
     input_text = "What is the capital of Germany?"
     inputs = tokenizer(f"User: {input_text}", return_tensors="pt")
+    inputs = {key: val.to("cuda" if torch.cuda.is_available() else "cpu") for key, val in inputs.items()}
     outputs = model.generate(**inputs)
     print("Generated Response:", tokenizer.decode(outputs[0], skip_special_tokens=True))
 
