@@ -983,7 +983,8 @@ async def get_notes_progress(course_id: int, current_user: User = Depends(get_cu
     notes = []
     for page in pages:
         note = db.query(models.Note).filter(models.Note.student_id == current_user.id and models.Note.page_id == page.id).first()
-        notes.append(note)
+        if note is not None:
+            notes.append({"page_id": page.id, "note": note.content})
     return { "notes": notes }
 
 @app.post("/quizzes/{quiz_id}/review/feedback")
