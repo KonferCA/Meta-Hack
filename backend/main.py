@@ -18,8 +18,8 @@ import io
 import models
 import database
 from database import engine, get_db
-from models import User, UserRole, Course, Section, Page  # update imports
-from utils.grok import query_grok, process_pdf_content
+from models import User, UserRole, Course, Section, Page, Enrollment, Quiz, QuizQuestion, QuizQuestionChoice, QuizResult  # update imports
+from utils.grok import query_grok, process_pdf_content, generate_quiz, generate_course_details
 from utils.pdf_processor import process_pdf, process_pdfs
 import PyPDF2
 
@@ -48,15 +48,10 @@ app = FastAPI()
 # configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # development
-        "http://195.242.13.94",   # production
-        "https://195.242.13.94",  # https production
-    ],
+    allow_origins=["http://localhost:5173"],  # frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # schemas
@@ -215,24 +210,91 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
         "role": user.role
     } 
 
-# course management endpoints
-@app.get("/courses")
-async def get_courses(
+# 1. First, define all specific course routes (no parameters)
+@app.get("/courses/teaching")
+async def get_teaching_courses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # if student, return enrolled courses
-    if current_user.role == UserRole.STUDENT:
-        enrollments = db.query(Enrollment).filter(Enrollment.student_id == current_user.id).all()
-        course_ids = [enrollment.course_id for enrollment in enrollments]
-        courses = db.query(Course).filter(Course.id.in_(course_ids)).all()
-    # if professor, return created courses
-    else:
-        courses = db.query(Course).filter(Course.professor_id == current_user.id).all()
+    # verify user is professor
+    if current_user.role != UserRole.PROFESSOR:
+        raise HTTPException(
+            status_code=403,
+            detail="Only professors can view teaching courses"
+        )
     
-    return courses
+    # get courses where user is professor
+    courses = db.query(Course).filter(
+        Course.professor_id == current_user.id
+    ).all()
+    
+    return [
+        {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "professor_id": course.professor_id,
+            "difficulty": course.difficulty,
+            "estimated_hours": course.estimated_hours
+        }
+        for course in courses
+    ]
 
-@app.post("/courses")
+@app.get("/courses/enrolled")
+async def get_enrolled_courses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # verify user is student
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(
+            status_code=403,
+            detail="Only students can view enrolled courses"
+        )
+    
+    # get enrolled courses
+    enrolled_courses = db.query(Course).join(
+        Enrollment, Course.id == Enrollment.course_id
+    ).filter(
+        Enrollment.student_id == current_user.id
+    ).all()
+    
+    return [
+        {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "professor_id": course.professor_id,
+            "difficulty": course.difficulty,
+            "estimated_hours": course.estimated_hours
+        }
+        for course in enrolled_courses
+    ]
+
+@app.get("/courses/available")
+async def get_available_courses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # verify user is student
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(
+            status_code=403,
+            detail="Only students can view available courses"
+        )
+    
+    # get all courses except ones already enrolled in
+    enrolled_courses = db.query(Enrollment.course_id).filter(
+        Enrollment.student_id == current_user.id
+    ).subquery()
+    
+    available_courses = db.query(Course).filter(
+        ~Course.id.in_(enrolled_courses)
+    ).all()
+    
+    return available_courses
+
+@app.post("/courses/create")
 async def create_course(
     title: str = Form(...),
     description: str = Form(...),
@@ -240,148 +302,42 @@ async def create_course(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    try:
-        # verify user is professor
-        if current_user.role != UserRole.PROFESSOR:
-            raise HTTPException(
-                status_code=403,
-                detail="Only professors can create courses"
-            )
-        
-        # validate file type
-        if not content.filename.endswith('.zip'):
-            raise HTTPException(
-                status_code=400,
-                detail="Only ZIP files are allowed"
-            )
-
-        # create course directory with timestamp
-        timestamp = datetime.now().timestamp()
-        course_dir = Path(f"courses/{timestamp}")
-        course_dir.mkdir(parents=True, exist_ok=True)
-        
-        # save and process zip file
-        content_bytes = await content.read()
-        
-        try:
-            with zipfile.ZipFile(io.BytesIO(content_bytes), 'r') as zip_ref:
-                # verify zip contains PDFs
-                pdf_files = []
-                for file_info in zip_ref.filelist:
-                    if file_info.filename.lower().endswith('.pdf'):
-                        pdf_content = zip_ref.read(file_info)
-                        pdf_files.append((file_info.filename, pdf_content))
-                
-                if not pdf_files:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="ZIP file must contain at least one PDF"
-                    )
-                
-                # create course in database
-                db_course = Course(
-                    title=title,
-                    description=description,
-                    professor_id=current_user.id,
-                )
-                db.add(db_course)
-                db.commit()
-                db.refresh(db_course)
-                
-                # process pdfs and create sections/pages
-                for filename, pdf_content in pdf_files:
-                    try:
-                        # extract text and generate markdown pages
-                        filename, markdown_pages = await process_pdf(filename, pdf_content)
-                        
-                        # create section
-                        section = Section(
-                            title=Path(filename).stem,
-                            content_url=str(course_dir / "content" / filename),
-                            order=len(db_course.sections) + 1,
-                            course_id=db_course.id
-                        )
-                        db.add(section)
-                        db.commit()
-                        db.refresh(section)
-                        
-                        # create pages for each markdown content
-                        for i, page_content in enumerate(markdown_pages):
-                            page = Page(
-                                content=page_content,
-                                course_id=db_course.id,
-                                section_id=section.id,
-                                order=i + 1  # add order field to Page model
-                            )
-                            db.add(page)
-                            db.commit()
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing {filename}: {str(e)}")
-                        db.rollback()
-                        if course_dir.exists():
-                            shutil.rmtree(course_dir)
-                        raise HTTPException(
-                            status_code=500,
-                            detail=f"Error processing {filename}: {str(e)}"
-                        )
-                
-                # extract all files
-                zip_ref.extractall(course_dir / "content")
-                
-                return db_course
-                
-        except zipfile.BadZipFile:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid ZIP file format"
-            )
-            
-    except HTTPException:
-        # cleanup on HTTP exceptions
-        if 'course_dir' in locals() and course_dir.exists():
-            shutil.rmtree(course_dir)
-        if 'db_course' in locals():
-            db.delete(db_course)
-            db.commit()
-        raise
-        
-    except Exception as e:
-        # cleanup on unexpected errors
-        if 'course_dir' in locals() and course_dir.exists():
-            shutil.rmtree(course_dir)
-        if 'db_course' in locals():
-            db.delete(db_course)
-            db.commit()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error creating course: {str(e)}"
-        )
-
-@app.post("/courses/{course_id}/enroll")
-async def enroll_in_course(
-    course_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if current_user.role != UserRole.STUDENT:
+    # verify user is professor
+    if current_user.role != UserRole.PROFESSOR:
         raise HTTPException(
             status_code=403,
-            detail="Only students can enroll in courses"
+            detail="Only professors can create courses"
         )
     
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
+    try:
+        # create course
+        course = Course(
+            title=title,
+            description=description,
+            professor_id=current_user.id
+        )
+        db.add(course)
+        db.commit()
+        db.refresh(course)
+        
+        # process uploaded content
+        # ... content processing logic here ...
+        
+        return {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "professor_id": course.professor_id
+        }
+        
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
-            status_code=404,
-            detail="Course not found"
+            status_code=500,
+            detail=f"Failed to create course: {str(e)}"
         )
-    
-    # TODO: Add enrollment logic here
-    # You'll need to create an Enrollment model and handle the enrollment process
-    
-    return {"message": "Successfully enrolled"}
 
+# 2. Then, define all parameterized routes
 @app.get("/courses/{course_id}")
 async def get_course(
     course_id: int,
@@ -418,6 +374,30 @@ async def get_course(
                 ]
             } for section in sections
         ]
+    }
+
+@app.get("/courses/{course_id}/details")
+async def get_course_details(
+    course_id: int,
+    db: Session = Depends(get_db)
+):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+        
+    professor = db.query(User).filter(User.id == course.professor_id).first()
+    
+    return {
+        "id": course.id,
+        "title": course.title,
+        "description": course.description,
+        "professor_name": professor.username,
+        "difficulty": course.difficulty,
+        "estimated_hours": course.estimated_hours,
+        "learning_outcomes": course.learning_outcomes or [],
+        "prerequisites": course.prerequisites or [],
+        "skills_gained": course.skills_gained or [],
+        "course_highlights": course.course_highlights or []
     }
 
 @app.get("/courses/{course_id}/progress")
@@ -530,6 +510,104 @@ async def feedback(fb: FeedbackCreate, current_user: User = Depends(get_current_
         pass
 
     return resp
+
+@app.post("/quizzes/{quiz_id}/submit")
+async def submit_quiz(
+    quiz_id: int,
+    answers: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    
+    print("Received answers:", answers)  # debug print
+        
+    # calculate score and collect detailed results
+    total_questions = len(quiz.questions)
+    correct_answers = 0
+    questions_results = []
+    
+    for question in quiz.questions:
+        student_answer_id = answers.get(str(question.id))
+        print(f"Question {question.id} - Student answer ID: {student_answer_id}")  # debug print
+        
+        student_choice = None
+        if student_answer_id:
+            student_choice = db.query(QuizQuestionChoice).filter(
+                QuizQuestionChoice.id == student_answer_id
+            ).first()
+            
+        correct_choice = db.query(QuizQuestionChoice).filter(
+            QuizQuestionChoice.id == question.correct_choice_id
+        ).first()
+        
+        is_correct = student_answer_id == question.correct_choice_id
+        if is_correct:
+            correct_answers += 1
+            
+        questions_results.append({
+            "id": question.id,
+            "question": question.question,
+            "isCorrect": is_correct,
+            "yourAnswer": student_choice.content if student_choice else "No answer provided",
+            "correctAnswer": correct_choice.content
+        })
+    
+    score = round((correct_answers / total_questions) * 100)
+    
+    # store result
+    result = QuizResult(
+        quiz_id=quiz_id,
+        student_id=current_user.id,
+        score=score
+    )
+    db.add(result)
+    db.commit()
+    
+    print("Final results:", questions_results)  # debug print
+    
+    return {
+        "score": score,
+        "questions": questions_results
+    }
+
+@app.get("/courses/{course_id}/sections/{section_id}/quiz")
+async def get_section_quiz(
+    course_id: int,
+    section_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # get quiz for the course
+    quiz = db.query(Quiz).filter(Quiz.course_id == course_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    # format quiz data for frontend
+    quiz_data = {
+        "id": quiz.id,
+        "questions": []
+    }
+
+    for question in quiz.questions:
+        question_data = {
+            "id": question.id,
+            "question": question.question,
+            "choices": []
+        }
+        
+        for choice in question.choices:
+            choice_data = {
+                "id": choice.id,
+                "content": choice.content
+            }
+            question_data["choices"].append(choice_data)
+        
+        quiz_data["questions"].append(question_data)
+
+    return quiz_data
 
 if __name__ == "__main__":
     uvicorn.run(

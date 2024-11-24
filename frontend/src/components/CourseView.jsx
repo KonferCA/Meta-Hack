@@ -8,6 +8,8 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
+import QuizModal from './QuizModal'
+import QuizResults from './QuizResults'
 
 export default function CourseView() {
     const { courseId } = useParams({ from: '/course/$courseId' })
@@ -18,6 +20,9 @@ export default function CourseView() {
     const [progress, setProgress] = useState({})
     const [currentPage, setCurrentPage] = useState(0)
     const PAGES_PER_VIEW = 1  // show one page at a time
+    const [quiz, setQuiz] = useState(null)
+    const [showQuiz, setShowQuiz] = useState(false)
+    const [quizResults, setQuizResults] = useState(null)
 
     useEffect(() => {
         const fetchCourse = async () => {
@@ -87,12 +92,23 @@ export default function CourseView() {
                 }
             )
             if (response.ok) {
-                const quiz = await response.json()
-                // TODO: Implement quiz modal/page
+                const quizData = await response.json()
+                setQuiz(quizData)
+                setShowQuiz(true)
             }
         } catch (error) {
             toast.error('Failed to load quiz')
         }
+    }
+
+    const handleQuizComplete = (result) => {
+        setShowQuiz(false)
+        setQuizResults(result)
+    }
+
+    const handleCloseResults = () => {
+        setQuizResults(null)
+        setQuiz(null)
     }
 
     if (!course) return <div>Loading...</div>
@@ -170,6 +186,14 @@ export default function CourseView() {
                                 Take Quiz
                             </button>
                         )}
+
+                        {showQuiz && quiz && (
+                            <QuizModal 
+                                quiz={quiz}
+                                onClose={() => setShowQuiz(false)}
+                                onComplete={handleQuizComplete}
+                            />
+                        )}
                     </div>
                 ) : (
                     <div className="text-center text-gray-500">
@@ -177,6 +201,14 @@ export default function CourseView() {
                     </div>
                 )}
             </div>
+
+            {/* Add QuizResults modal */}
+            {quizResults && (
+                <QuizResults 
+                    result={quizResults}
+                    onClose={handleCloseResults}
+                />
+            )}
         </div>
     )
 } 

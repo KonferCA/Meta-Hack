@@ -19,6 +19,7 @@ import { Route as rootRoute } from './routes/__root'
 const LoginLazyImport = createFileRoute('/login')()
 const DashboardLazyImport = createFileRoute('/dashboard')()
 const IndexLazyImport = createFileRoute('/')()
+const CoursesCourseIdLazyImport = createFileRoute('/courses/$courseId')()
 const CourseCourseIdLazyImport = createFileRoute('/course/$courseId')()
 const CourseCourseIdManageLazyImport = createFileRoute(
   '/course/$courseId/manage',
@@ -43,6 +44,14 @@ const IndexLazyRoute = IndexLazyImport.update({
   path: '/',
   getParentRoute: () => rootRoute,
 } as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
+
+const CoursesCourseIdLazyRoute = CoursesCourseIdLazyImport.update({
+  id: '/courses/$courseId',
+  path: '/courses/$courseId',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() =>
+  import('./routes/courses.$courseId.lazy').then((d) => d.Route),
+)
 
 const CourseCourseIdLazyRoute = CourseCourseIdLazyImport.update({
   id: '/course/$courseId',
@@ -92,6 +101,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CourseCourseIdLazyImport
       parentRoute: typeof rootRoute
     }
+    '/courses/$courseId': {
+      id: '/courses/$courseId'
+      path: '/courses/$courseId'
+      fullPath: '/courses/$courseId'
+      preLoaderRoute: typeof CoursesCourseIdLazyImport
+      parentRoute: typeof rootRoute
+    }
     '/course/$courseId/manage': {
       id: '/course/$courseId/manage'
       path: '/manage'
@@ -120,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardLazyRoute
   '/login': typeof LoginLazyRoute
   '/course/$courseId': typeof CourseCourseIdLazyRouteWithChildren
+  '/courses/$courseId': typeof CoursesCourseIdLazyRoute
   '/course/$courseId/manage': typeof CourseCourseIdManageLazyRoute
 }
 
@@ -128,6 +145,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardLazyRoute
   '/login': typeof LoginLazyRoute
   '/course/$courseId': typeof CourseCourseIdLazyRouteWithChildren
+  '/courses/$courseId': typeof CoursesCourseIdLazyRoute
   '/course/$courseId/manage': typeof CourseCourseIdManageLazyRoute
 }
 
@@ -137,6 +155,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardLazyRoute
   '/login': typeof LoginLazyRoute
   '/course/$courseId': typeof CourseCourseIdLazyRouteWithChildren
+  '/courses/$courseId': typeof CoursesCourseIdLazyRoute
   '/course/$courseId/manage': typeof CourseCourseIdManageLazyRoute
 }
 
@@ -147,6 +166,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/course/$courseId'
+    | '/courses/$courseId'
     | '/course/$courseId/manage'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +174,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/course/$courseId'
+    | '/courses/$courseId'
     | '/course/$courseId/manage'
   id:
     | '__root__'
@@ -161,6 +182,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/course/$courseId'
+    | '/courses/$courseId'
     | '/course/$courseId/manage'
   fileRoutesById: FileRoutesById
 }
@@ -170,6 +192,7 @@ export interface RootRouteChildren {
   DashboardLazyRoute: typeof DashboardLazyRoute
   LoginLazyRoute: typeof LoginLazyRoute
   CourseCourseIdLazyRoute: typeof CourseCourseIdLazyRouteWithChildren
+  CoursesCourseIdLazyRoute: typeof CoursesCourseIdLazyRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -177,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardLazyRoute: DashboardLazyRoute,
   LoginLazyRoute: LoginLazyRoute,
   CourseCourseIdLazyRoute: CourseCourseIdLazyRouteWithChildren,
+  CoursesCourseIdLazyRoute: CoursesCourseIdLazyRoute,
 }
 
 export const routeTree = rootRoute
@@ -192,7 +216,8 @@ export const routeTree = rootRoute
         "/",
         "/dashboard",
         "/login",
-        "/course/$courseId"
+        "/course/$courseId",
+        "/courses/$courseId"
       ]
     },
     "/": {
@@ -209,6 +234,9 @@ export const routeTree = rootRoute
       "children": [
         "/course/$courseId/manage"
       ]
+    },
+    "/courses/$courseId": {
+      "filePath": "courses.$courseId.lazy.jsx"
     },
     "/course/$courseId/manage": {
       "filePath": "course.$courseId.manage.lazy.jsx",
