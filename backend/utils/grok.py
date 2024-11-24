@@ -18,6 +18,8 @@ async def query_grok(prompt: str) -> str:
             print("Warning: GROQ_API_KEY not found in environment variables")
             return "Error: Missing API key"
             
+        print(f"Using GROQ API key: {os.environ.get('GROQ_API_KEY')[:10]}...")
+        
         messages = [
             {
                 "role": "system",
