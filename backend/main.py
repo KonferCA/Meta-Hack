@@ -330,8 +330,8 @@ async def create_course(
         content_text = await query_grok(f"Generate a detailed lesson about {title}")
         logger.debug(f"Generated content: {content_text}")
         
-        quiz_data = await generate_quiz(content_text)
-        logger.debug(f"Generated quiz: {quiz_data}")
+        questions = await generate_quiz(content_text)
+        logger.debug(f"Generated quiz: {questions}")
 
         # create section
         section = Section(
@@ -352,7 +352,7 @@ async def create_course(
         db.add(page)
         
         # create quiz with generated questions
-        if quiz_data:
+        if questions:
             quiz = Quiz(
                 section_id=section.id,
                 course_id=course.id
@@ -360,21 +360,35 @@ async def create_course(
             db.add(quiz)
             db.commit()
             
-            for q_data in quiz_data:
+            for q_data in questions:
+                # first create the question
                 question = QuizQuestion(
                     quiz_id=quiz.id,
                     question=q_data['question'],
-                    correct_answer=q_data['correctAnswer']
+                    correct_choice_id=None  # initially set to None
                 )
                 db.add(question)
                 db.commit()
+                db.refresh(question)
                 
-                for option in q_data['options']:
+                # create all choices
+                choices = []
+                for i, option in enumerate(q_data['options']):
                     choice = QuizQuestionChoice(
-                        question_id=question.id,
+                        quiz_question_id=question.id,
                         content=option
                     )
                     db.add(choice)
+                    db.commit()
+                    db.refresh(choice)
+                    choices.append(choice)
+                    
+                    # store the correct choice
+                    if i == q_data['correctAnswer']:
+                        # update the question with correct choice id
+                        question.correct_choice_id = choice.id
+                        db.add(question)
+                        db.commit()
         
         db.commit()
         

@@ -109,30 +109,32 @@ async def generate_quiz(content: str) -> list:
         response = await query_grok_quiz(content)
         print("\nRaw API Response:", response)
         
-        quiz_data = json.loads(response)
-        print("\nParsed Quiz Data:", quiz_data)
-        
+        # Parse the response directly as a list
+        questions = json.loads(response)
+        if not isinstance(questions, list):
+            print("Invalid response format - expected a list")
+            return []
+            
         # validate quiz format
-        for question in quiz_data:
+        validated_questions = []
+        for question in questions:
             print("\nValidating question:", question)
             if not all(key in question for key in ["question", "options", "correctAnswer"]):
                 print("Missing required fields")
-                raise ValueError("Invalid question format")
-            if len(question["options"]) != 4:
-                print("Wrong number of options:", len(question["options"]))
-                raise ValueError("Each question must have exactly 4 options")
+                continue
+            if not isinstance(question["options"], list) or len(question["options"]) != 4:
+                print("Wrong number of options")
+                continue
             if not isinstance(question["correctAnswer"], int) or not 0 <= question["correctAnswer"] <= 3:
-                print("Invalid correctAnswer:", question["correctAnswer"])
-                raise ValueError("correctAnswer must be 0-3")
+                print("Invalid correctAnswer")
+                continue
             print("Question validated successfully")
+            validated_questions.append(question)
         
-        return quiz_data
+        return validated_questions
+        
     except json.JSONDecodeError as e:
         print("\nJSON Parse Error:", str(e))
-        print("Raw response was:", response)
-        return []
-    except ValueError as e:
-        print("\nValidation Error:", str(e))
         return []
     except Exception as e:
         print("\nUnexpected Error:", str(e))
