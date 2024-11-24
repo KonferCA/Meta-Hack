@@ -10,13 +10,24 @@ from pydantic import BaseModel, EmailStr
 import uvicorn
 import shutil
 import os
+
 import zipfile
 from pathlib import Path
+import io
 
 import models
 import database
 from database import engine, get_db
-from models import User, UserRole, Course, Section  # update imports
+from models import User, UserRole, Course, Section, Page  # update imports
+from utils.grok import query_grok, process_pdf_content
+from utils.pdf_processor import process_pdf, process_pdfs
+import PyPDF2
+
+import logging
+from jose import JWTError, jwt  # replace the existing jwt import
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # create tables
 models.Base.metadata.create_all(bind=engine)
@@ -206,16 +217,19 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
 
 # course management endpoints
 @app.get("/courses")
-async def list_courses(
+async def get_courses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role == UserRole.PROFESSOR:
-        # professors see their own courses
-        courses = db.query(Course).filter(Course.professor_id == current_user.id).all()
+    # if student, return enrolled courses
+    if current_user.role == UserRole.STUDENT:
+        enrollments = db.query(Enrollment).filter(Enrollment.student_id == current_user.id).all()
+        course_ids = [enrollment.course_id for enrollment in enrollments]
+        courses = db.query(Course).filter(Course.id.in_(course_ids)).all()
+    # if professor, return created courses
     else:
-        # students see all available courses
-        courses = db.query(Course).all()
+        courses = db.query(Course).filter(Course.professor_id == current_user.id).all()
+    
     return courses
 
 @app.post("/courses")
@@ -226,49 +240,123 @@ async def create_course(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # verify user is professor
-    if current_user.role != UserRole.PROFESSOR:
-        raise HTTPException(
-            status_code=403,
-            detail="Only professors can create courses"
-        )
-    
-    # create course directory with timestamp
-    timestamp = datetime.now().timestamp()
-    course_dir = Path(f"courses/{timestamp}")
-    course_dir.mkdir(parents=True, exist_ok=True)
-    
-    # save zip file
-    zip_path = course_dir / "content.zip"
-    content_bytes = await content.read()
-    with zip_path.open("wb") as buffer:
-        buffer.write(content_bytes)
-    
-    # extract zip file
     try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(course_dir / "content")
-        # remove zip file after extraction
-        zip_path.unlink()
-    except zipfile.BadZipFile:
-        # cleanup if zip is invalid
-        shutil.rmtree(course_dir)
+        # verify user is professor
+        if current_user.role != UserRole.PROFESSOR:
+            raise HTTPException(
+                status_code=403,
+                detail="Only professors can create courses"
+            )
+        
+        # validate file type
+        if not content.filename.endswith('.zip'):
+            raise HTTPException(
+                status_code=400,
+                detail="Only ZIP files are allowed"
+            )
+
+        # create course directory with timestamp
+        timestamp = datetime.now().timestamp()
+        course_dir = Path(f"courses/{timestamp}")
+        course_dir.mkdir(parents=True, exist_ok=True)
+        
+        # save and process zip file
+        content_bytes = await content.read()
+        
+        try:
+            with zipfile.ZipFile(io.BytesIO(content_bytes), 'r') as zip_ref:
+                # verify zip contains PDFs
+                pdf_files = []
+                for file_info in zip_ref.filelist:
+                    if file_info.filename.lower().endswith('.pdf'):
+                        pdf_content = zip_ref.read(file_info)
+                        pdf_files.append((file_info.filename, pdf_content))
+                
+                if not pdf_files:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="ZIP file must contain at least one PDF"
+                    )
+                
+                # create course in database
+                db_course = Course(
+                    title=title,
+                    description=description,
+                    professor_id=current_user.id,
+                )
+                db.add(db_course)
+                db.commit()
+                db.refresh(db_course)
+                
+                # process pdfs and create sections/pages
+                for filename, pdf_content in pdf_files:
+                    try:
+                        # extract text and generate markdown pages
+                        filename, markdown_pages = await process_pdf(filename, pdf_content)
+                        
+                        # create section
+                        section = Section(
+                            title=Path(filename).stem,
+                            content_url=str(course_dir / "content" / filename),
+                            order=len(db_course.sections) + 1,
+                            course_id=db_course.id
+                        )
+                        db.add(section)
+                        db.commit()
+                        db.refresh(section)
+                        
+                        # create pages for each markdown content
+                        for i, page_content in enumerate(markdown_pages):
+                            page = Page(
+                                content=page_content,
+                                course_id=db_course.id,
+                                section_id=section.id,
+                                order=i + 1  # add order field to Page model
+                            )
+                            db.add(page)
+                            db.commit()
+                            
+                    except Exception as e:
+                        logger.error(f"Error processing {filename}: {str(e)}")
+                        db.rollback()
+                        if course_dir.exists():
+                            shutil.rmtree(course_dir)
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Error processing {filename}: {str(e)}"
+                        )
+                
+                # extract all files
+                zip_ref.extractall(course_dir / "content")
+                
+                return db_course
+                
+        except zipfile.BadZipFile:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid ZIP file format"
+            )
+            
+    except HTTPException:
+        # cleanup on HTTP exceptions
+        if 'course_dir' in locals() and course_dir.exists():
+            shutil.rmtree(course_dir)
+        if 'db_course' in locals():
+            db.delete(db_course)
+            db.commit()
+        raise
+        
+    except Exception as e:
+        # cleanup on unexpected errors
+        if 'course_dir' in locals() and course_dir.exists():
+            shutil.rmtree(course_dir)
+        if 'db_course' in locals():
+            db.delete(db_course)
+            db.commit()
         raise HTTPException(
-            status_code=400,
-            detail="Invalid zip file"
+            status_code=500,
+            detail=f"Unexpected error creating course: {str(e)}"
         )
-    
-    # create course in database
-    db_course = Course(
-        title=title,
-        description=description,
-        professor_id=current_user.id,
-    )
-    db.add(db_course)
-    db.commit()
-    db.refresh(db_course)
-    
-    return db_course
 
 @app.post("/courses/{course_id}/enroll")
 async def enroll_in_course(
@@ -305,7 +393,7 @@ async def get_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
         
-    # get sections
+    # get sections with pages
     sections = db.query(Section).filter(Section.course_id == course_id).order_by(Section.order).all()
     
     # return course with sections
@@ -313,8 +401,23 @@ async def get_course(
         "id": course.id,
         "title": course.title,
         "description": course.description,
-        "content_path": course.content_path,
-        "sections": sections
+        "professor_id": course.professor_id,
+        "created_at": course.created_at,
+        "sections": [
+            {
+                "id": section.id,
+                "title": section.title,
+                "order": section.order,
+                "content_url": section.content_url,
+                "pages": [
+                    {
+                        "id": page.id,
+                        "content": page.content,
+                        "created_at": page.created_at
+                    } for page in section.pages
+                ]
+            } for section in sections
+        ]
     }
 
 @app.get("/courses/{course_id}/progress")

@@ -1,0 +1,25 @@
+# Quantum Mechanics Fundamentals
+
+## Introduction
+The Schrödinger equation forms the foundation of quantum mechanics.
+
+## Key Concepts
+- **Wave Function**: $\psi(x,t)$ represents the quantum state
+- **Schrödinger Equation**: $i\hbar\frac{\partial}{\partial t}\psi = -\frac{\hbar^2}{2m}\frac{\partial^2\psi}{\partial x^2} + V\psi$
+- **Expectation Values**: $\langle x \rangle = \int_{-\infty}^{\infty} \psi^* x \psi dx$
+- **Uncertainty**: $\Delta x \Delta p \geq \frac{\hbar}{2}$
+
+## Applications
+The wave equation describes particle behavior at quantum scales:
+$$
+\begin{pmatrix} 
+\frac{\partial}{\partial t} & -c\frac{\partial}{\partial x} \\
+-c\frac{\partial}{\partial x} & \frac{\partial}{\partial t}
+\end{pmatrix}
+\begin{pmatrix}
+\phi_1 \\ \phi_2
+\end{pmatrix} = 0
+$$
+
+---
+**Summary**: Quantum mechanics uses wave functions and operators to describe microscopic systems.

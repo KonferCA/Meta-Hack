@@ -4,3 +4,6 @@ frontend/.env.production
 *.pyc
 backend/sql_app.db
 *.db
+backend/courses
+*.cpython-312.pyc
+backend/.env

@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 
 export default function CourseView() {
     const { courseId } = useParams({ from: '/course/$courseId' })
@@ -10,6 +16,8 @@ export default function CourseView() {
     const [sections, setSections] = useState([])
     const [currentSection, setCurrentSection] = useState(null)
     const [progress, setProgress] = useState({})
+    const [currentPage, setCurrentPage] = useState(0)
+    const PAGES_PER_VIEW = 1  // show one page at a time
 
     useEffect(() => {
         const fetchCourse = async () => {
@@ -49,8 +57,23 @@ export default function CourseView() {
         fetchCourse()
     }, [courseId])
 
+    // pagination controls
+    const handleNextPage = () => {
+        if (currentSection && currentPage < currentSection.pages.length - 1) {
+            setCurrentPage(prev => prev + 1)
+        }
+    }
+
+    const handlePrevPage = () => {
+        if (currentPage > 0) {
+            setCurrentPage(prev => prev - 1)
+        }
+    }
+
+    // reset current page when changing sections
     const handleSectionClick = (section) => {
         setCurrentSection(section)
+        setCurrentPage(0)
     }
 
     const handleQuizStart = async (sectionId) => {
@@ -76,7 +99,7 @@ export default function CourseView() {
 
     return (
         <div className="flex min-h-screen">
-            {/* sidebar */}
+            {/* sidebar with section navigation */}
             <div className="w-64 bg-gray-100 p-4 border-r">
                 <h2 className="text-xl font-bold mb-4">{course.title}</h2>
                 <div className="space-y-2">
@@ -96,28 +119,61 @@ export default function CourseView() {
                 </div>
             </div>
 
-            {/* main content */}
+            {/* main content area with pagination */}
             <div className="flex-1 p-8">
                 {currentSection ? (
                     <div>
-                        <h3 className="text-2xl font-bold mb-4">{currentSection.title}</h3>
-                        <div className="mb-8">
-                            <iframe
-                                src={currentSection.content_url}
-                                className="w-full h-[800px]"
-                                title={currentSection.title}
-                            />
+                        <h2 className="text-2xl font-bold mb-4">{currentSection.title}</h2>
+                        
+                        {/* page content with markdown and latex rendering */}
+                        {currentSection.pages && currentSection.pages[currentPage] && (
+                            <div className="prose prose-slate max-w-none mb-8">
+                                <ReactMarkdown 
+                                    remarkPlugins={[remarkGfm, remarkMath]}
+                                    rehypePlugins={[rehypeRaw, rehypeKatex]}
+                                    className="markdown-content"
+                                >
+                                    {currentSection.pages[currentPage].content}
+                                </ReactMarkdown>
+                            </div>
+                        )}
+                        
+                        {/* pagination controls */}
+                        <div className="flex justify-between items-center mt-8">
+                            <button 
+                                onClick={handlePrevPage}
+                                disabled={currentPage === 0}
+                                className="bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-300"
+                            >
+                                Previous Page
+                            </button>
+                            
+                            <span className="text-gray-600">
+                                Page {currentPage + 1} of {currentSection.pages?.length || 1}
+                            </span>
+                            
+                            <button 
+                                onClick={handleNextPage}
+                                disabled={!currentSection.pages || currentPage >= currentSection.pages.length - 1}
+                                className="bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-300"
+                            >
+                                Next Page
+                            </button>
                         </div>
-                        <button
-                            onClick={() => handleQuizStart(currentSection.id)}
-                            className="bg-green-500 text-white px-4 py-2 rounded"
-                        >
-                            Take Quiz
-                        </button>
+                        
+                        {/* quiz button - only show on last page */}
+                        {currentPage === (currentSection.pages?.length - 1) && (
+                            <button 
+                                onClick={() => handleQuizStart(currentSection.id)}
+                                className="mt-8 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                            >
+                                Take Quiz
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="text-center text-gray-500">
-                        Select a section to begin
+                        Select a section to view its content
                     </div>
                 )}
             </div>

@@ -65,7 +65,7 @@ starlette==0.41.3
 sympy==1.13.1
 tokenizers==0.20.3
 torch==2.1.0
-torchvision==0.16.0
+torchvision==0.17.0
 tqdm==4.67.0
 transformers==4.46.3
 trl==0.12.1
@@ -75,3 +75,4 @@ urllib3==2.2.3
 uvicorn==0.32.1
 xxhash==3.5.0
 yarl==1.18.0
+PyPDF2==3.0.1

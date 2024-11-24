@@ -4,6 +4,7 @@ from sqlalchemy import Column, ColumnClause, Integer, String, Boolean, Enum, For
 from database import Base
 import enum
 from datetime import datetime
+from sqlalchemy.orm import relationship
 
 class UserRole(str, enum.Enum):
     STUDENT = "student"
@@ -54,6 +55,12 @@ class Course(Base):
     professor_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # relationships
+    sections = relationship("Section", back_populates="course")
+    pages = relationship("Page", back_populates="course")
+    enrollments = relationship("Enrollment", back_populates="course")
+    quizzes = relationship("Quiz", back_populates="course")
+
 class Section(Base):
     __tablename__ = "sections"
 
@@ -63,6 +70,11 @@ class Section(Base):
     order = Column(Integer)
     course_id = Column(Integer, ForeignKey("courses.id"))
 
+    # relationships
+    course = relationship("Course", back_populates="sections")
+    pages = relationship("Page", back_populates="section")
+    quizzes = relationship("Quiz", back_populates="section")
+
 class Page(Base):
     __tablename__ = "pages"
 
@@ -70,8 +82,12 @@ class Page(Base):
     content = Column(String, nullable=False)
     course_id = Column(Integer, ForeignKey("courses.id"))
     section_id = Column(Integer, ForeignKey("sections.id"))
+    order = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # relationships
+    course = relationship("Course", back_populates="pages")
+    section = relationship("Section", back_populates="pages")
 
 class Enrollment(Base):
     __tablename__ = "enrollments"
@@ -79,7 +95,11 @@ class Enrollment(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("users.id"))
     course_id = Column(Integer, ForeignKey("courses.id"))
-    enrolled_at = Column(DateTime, default=datetime.utcnow) 
+    enrolled_at = Column(DateTime, default=datetime.utcnow)
+
+    # add relationships
+    course = relationship("Course", back_populates="enrollments")
+    student = relationship("User", backref="enrollments")
 
 class Note(Base):
     __tablename__ = "notes"
@@ -104,9 +124,14 @@ class QuizQuestionChoice(Base):
     __tablename__ = "quiz_question_choices"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    quiz_id = Column(Integer, ForeignKey("quiz_questions.id"))
+    quiz_question_id = Column(Integer, ForeignKey("quiz_questions.id"))
     content = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # relationship
+    question = relationship("QuizQuestion", 
+                          back_populates="choices",
+                          foreign_keys="[QuizQuestionChoice.quiz_question_id]")
 
 class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
@@ -114,8 +139,16 @@ class QuizQuestion(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     quiz_id = Column(Integer, ForeignKey("quizzes.id"))
     question = Column(String)
-    correct_choice = Column(Integer, ForeignKey("quiz_question_choices.id"))
+    correct_choice_id = Column(Integer, ForeignKey("quiz_question_choices.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # relationships
+    quiz = relationship("Quiz", back_populates="questions")
+    choices = relationship("QuizQuestionChoice", 
+                         back_populates="question",
+                         foreign_keys="[QuizQuestionChoice.quiz_question_id]")
+    correct_choice = relationship("QuizQuestionChoice", 
+                                foreign_keys="[QuizQuestion.correct_choice_id]")
 
 class Quiz(Base):
     __tablename__ = "quizzes"
@@ -124,3 +157,8 @@ class Quiz(Base):
     course_id = Column(Integer, ForeignKey("courses.id"))
     section_id = Column(Integer, ForeignKey("sections.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # relationships
+    course = relationship("Course", back_populates="quizzes")
+    section = relationship("Section", back_populates="quizzes")
+    questions = relationship("QuizQuestion", back_populates="quiz")

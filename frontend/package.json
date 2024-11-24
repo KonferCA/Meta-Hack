@@ -17,12 +17,20 @@
         "@mui/icons-material": "^6.1.8",
         "@mui/material": "^6.1.8",
         "@tanstack/react-router": "^1.82.2",
+        "katex": "^0.16.11",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
-        "react-hot-toast": "^2.4.1"
+        "react-hot-toast": "^2.4.1",
+        "react-katex": "^3.0.1",
+        "react-markdown": "^9.0.1",
+        "rehype-katex": "^7.0.1",
+        "rehype-raw": "^7.0.0",
+        "remark-gfm": "^4.0.0",
+        "remark-math": "^6.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
+        "@tailwindcss/typography": "^0.5.15",
         "@tanstack/router-devtools": "^1.82.2",
         "@tanstack/router-plugin": "^1.81.9",
         "@types/react": "^18.3.12",

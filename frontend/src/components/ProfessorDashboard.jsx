@@ -37,6 +37,11 @@ export default function ProfessorDashboard() {
         setIsUploading(true)
         
         try {
+            if (!newCourse.title || !newCourse.description || !newCourse.content) {
+                toast.error('Please fill in all fields and upload a file')
+                return
+            }
+
             const formData = new FormData()
             formData.append('title', newCourse.title)
             formData.append('description', newCourse.description)
@@ -50,14 +55,18 @@ export default function ProfessorDashboard() {
                 body: formData
             })
 
-            if (response.ok) {
-                const data = await response.json()
-                setCourses(prev => [...prev, data])
-                setNewCourse({ title: '', description: '', content: null })
-                toast.success('Course created successfully!')
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.detail || 'Failed to create course')
             }
+
+            setCourses(prev => [...prev, data])
+            setNewCourse({ title: '', description: '', content: null })
+            toast.success('Course created successfully!')
         } catch (error) {
-            toast.error('Failed to create course')
+            console.error('Course creation error:', error)
+            toast.error(error.message || 'Failed to create course')
         } finally {
             setIsUploading(false)
         }

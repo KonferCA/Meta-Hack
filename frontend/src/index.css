@@ -64,3 +64,60 @@ button:focus-visible {
         background-color: #f9f9f9;
     }
 }
+
+/* markdown content styles */
+.markdown-content {
+    @apply text-gray-800 leading-relaxed;
+}
+
+.markdown-content h1 {
+    @apply text-3xl font-bold mb-6 text-gray-900;
+}
+
+.markdown-content h2 {
+    @apply text-2xl font-semibold mb-4 mt-8 text-gray-800;
+}
+
+.markdown-content p {
+    @apply mb-4;
+}
+
+.markdown-content ul {
+    @apply list-disc pl-6 mb-4;
+}
+
+.markdown-content li {
+    @apply mb-2;
+}
+
+.markdown-content strong {
+    @apply font-semibold text-gray-900;
+}
+
+.markdown-content hr {
+    @apply my-8 border-gray-200;
+}
+
+.markdown-content blockquote {
+    @apply pl-4 border-l-4 border-gray-200 italic my-4;
+}
+
+/* katex styles */
+.katex-display {
+    @apply my-4 overflow-x-auto overflow-y-hidden;
+}
+
+.katex {
+    @apply text-lg;
+}
+
+/* handle overflow for long equations */
+.katex-display > .katex {
+    @apply max-w-full;
+}
+
+.katex-display > .katex > .katex-html {
+    @apply max-w-full overflow-x-auto overflow-y-hidden;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+}
