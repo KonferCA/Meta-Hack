@@ -143,13 +143,13 @@ async def query_grok_quiz(content: str) -> str:
             IMPORTANT: Return your response as a SINGLE JSON array containing EXACTLY 4 questions. Example format:
             [
                 {
-                    "question": "What is X?",
-                    "options": ["A", "B", "C", "D"],
-                    "correctAnswer": 0
+                    "question": "What is the derivative of x^2?",
+                    "options": ["x", "2x", "2", "x^2"],
+                    "correctAnswer": 1
                 },
                 {
-                    "question": "What is Y?",
-                    "options": ["A", "B", "C", "D"],
+                    "question": "What is the integral of 2x dx?",
+                    "options": ["x^2", "x^2 + C", "2x^2", "2x^2 + C"],
                     "correctAnswer": 1
                 }
             ]
