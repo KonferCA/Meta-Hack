@@ -46,7 +46,13 @@ def get_device():
 
 def generate_initial_note(page_content, model, tokenizer):
     inputs = tokenizer(f"Generate notes for the given content: {page_content}", return_tensors="pt")
-    outputs = model.generate(**inputs)
+    outputs = model.generate(
+        **inputs,
+        max_length=2048,
+        pad_token_id=tokenizer.eos_token_id,
+        num_return_sequences=1,
+        temperature=0.7
+    )
     final_output = ""
     for output in outputs:
         final_output += tokenizer.decode(output, skip_special_tokens=True)
