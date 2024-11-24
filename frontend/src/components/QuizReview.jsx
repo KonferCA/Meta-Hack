@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import axios from 'axios'
 
 export default function QuizReview({ quizId, wrongQuestions, onClose }) {
     const [review, setReview] = useState('')
@@ -10,8 +9,17 @@ export default function QuizReview({ quizId, wrongQuestions, onClose }) {
     useEffect(() => {
         const fetchReview = async () => {
             try {
-                const response = await axios.post(`/api/quizzes/${quizId}/review`)
-                setReview(response.data.review)
+                const response = await fetch(`/api/quizzes/${quizId}/review`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                if (!response.ok) {
+                    throw new Error('Failed to fetch review')
+                }
+                const data = await response.json()
+                setReview(data.review)
             } catch (err) {
                 setError('Failed to load review. Please try again.')
             } finally {
@@ -58,4 +66,4 @@ export default function QuizReview({ quizId, wrongQuestions, onClose }) {
             </div>
         </motion.div>
     )
-} 
+}
