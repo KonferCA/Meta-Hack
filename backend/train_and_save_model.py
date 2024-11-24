@@ -1,5 +1,5 @@
 import torch
-from transformers import LlamaForCausalLM, LlamaTokenizer, Trainer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 from peft import (
     get_peft_model,
     LoraConfig,
@@ -28,14 +28,15 @@ class EfficientPerUserTrainer:
         self.base_model_path = Config.MODEL_NAME
         self.output_dir = output_dir
         self.device = device
+        print(self.base_model_path)
         
         # Load tokenizer
-        self.tokenizer = LlamaTokenizer.from_pretrained(self.base_model_path, use_auth_token=use_auth)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.base_model_path, use_auth_token=use_auth)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             
         # Load model in 8-bit to reduce memory usage
-        self.base_model = LlamaForCausalLM.from_pretrained(
+        self.base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_path,
             load_in_8bit=True,
             device_map="auto",
