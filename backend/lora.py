@@ -6,9 +6,9 @@
 
 import torch
 from datasets import load_dataset
-
+from transformers import MllamaForConditionalGeneration, AutoProcessor, BitsAndBytesConfig
+from peft import LoraConfig, get_peft_model
 from trl import SFTTrainer
-from peft import LoraConfig
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TrainingArguments
 from config import Config
 # from huggingface_hub import login
@@ -23,7 +23,12 @@ model_id = Config.MODEL_NAME
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-model = AutoModelForCausalLM.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
+# model = AutoModelForCausalLM.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
+model = MllamaForConditionalGeneration.from_pretrained(
+        model_id,
+        torch_dtype=torch.bfloat16,
+        device_map="auto"
+)
 
 dataset = load_dataset("imdb", split="train")
 
@@ -37,18 +42,17 @@ training_args = TrainingArguments(
 
 QLoRA = True
 if QLoRA:
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4"
-    )
-    
     lora_config = LoraConfig(
         r=8,
-        target_modules="all-linear",
-        bias="none",
-        task_type="CAUSAL_LM",
+        lora_alpha=8,
+        lora_dropout=0.1,
+        target_modules=['down_proj','o_proj','k_proj','q_proj','gate_proj','up_proj','v_proj'],
+        use_dora=True, # optional DoRA 
+        init_lora_weights="gaussian"
     )
+
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 else:
     lora_config = None
 
