@@ -16,16 +16,18 @@ export default function ProfessorDashboard() {
     useEffect(() => {
         const fetchCourses = async () => {
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/courses`, {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/courses/teaching`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 })
-                if (response.ok) {
-                    const data = await response.json()
-                    setCourses(data)
+                if (!response.ok) {
+                    throw new Error('Failed to fetch courses')
                 }
+                const data = await response.json()
+                setCourses(data)
             } catch (error) {
+                console.error('Error fetching courses:', error)
                 toast.error('Failed to fetch courses')
             }
         }
@@ -47,7 +49,7 @@ export default function ProfessorDashboard() {
             formData.append('description', newCourse.description)
             formData.append('content', newCourse.content)
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/courses`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/courses/create`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`

@@ -210,7 +210,36 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
         "role": user.role
     } 
 
-# course management endpoints
+# 1. First, define all specific course routes (no parameters)
+@app.get("/courses/teaching")
+async def get_teaching_courses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # verify user is professor
+    if current_user.role != UserRole.PROFESSOR:
+        raise HTTPException(
+            status_code=403,
+            detail="Only professors can view teaching courses"
+        )
+    
+    # get courses where user is professor
+    courses = db.query(Course).filter(
+        Course.professor_id == current_user.id
+    ).all()
+    
+    return [
+        {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "professor_id": course.professor_id,
+            "difficulty": course.difficulty,
+            "estimated_hours": course.estimated_hours
+        }
+        for course in courses
+    ]
+
 @app.get("/courses/enrolled")
 async def get_enrolled_courses(
     current_user: User = Depends(get_current_user),
@@ -265,6 +294,50 @@ async def get_available_courses(
     
     return available_courses
 
+@app.post("/courses/create")
+async def create_course(
+    title: str = Form(...),
+    description: str = Form(...),
+    content: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # verify user is professor
+    if current_user.role != UserRole.PROFESSOR:
+        raise HTTPException(
+            status_code=403,
+            detail="Only professors can create courses"
+        )
+    
+    try:
+        # create course
+        course = Course(
+            title=title,
+            description=description,
+            professor_id=current_user.id
+        )
+        db.add(course)
+        db.commit()
+        db.refresh(course)
+        
+        # process uploaded content
+        # ... content processing logic here ...
+        
+        return {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "professor_id": course.professor_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create course: {str(e)}"
+        )
+
+# 2. Then, define all parameterized routes
 @app.get("/courses/{course_id}")
 async def get_course(
     course_id: int,
@@ -301,6 +374,30 @@ async def get_course(
                 ]
             } for section in sections
         ]
+    }
+
+@app.get("/courses/{course_id}/details")
+async def get_course_details(
+    course_id: int,
+    db: Session = Depends(get_db)
+):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+        
+    professor = db.query(User).filter(User.id == course.professor_id).first()
+    
+    return {
+        "id": course.id,
+        "title": course.title,
+        "description": course.description,
+        "professor_name": professor.username,
+        "difficulty": course.difficulty,
+        "estimated_hours": course.estimated_hours,
+        "learning_outcomes": course.learning_outcomes or [],
+        "prerequisites": course.prerequisites or [],
+        "skills_gained": course.skills_gained or [],
+        "course_highlights": course.course_highlights or []
     }
 
 @app.get("/courses/{course_id}/progress")
@@ -511,61 +608,6 @@ async def get_section_quiz(
         quiz_data["questions"].append(question_data)
 
     return quiz_data
-
-@app.get("/courses/{course_id}/details")
-async def get_course_details(
-    course_id: int,
-    db: Session = Depends(get_db)
-):
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-        
-    professor = db.query(User).filter(User.id == course.professor_id).first()
-    
-    return {
-        "id": course.id,
-        "title": course.title,
-        "description": course.description,
-        "professor_name": professor.username,
-        "difficulty": course.difficulty,
-        "estimated_hours": course.estimated_hours,
-        "learning_outcomes": course.learning_outcomes or [],
-        "prerequisites": course.prerequisites or [],
-        "skills_gained": course.skills_gained or [],
-        "course_highlights": course.course_highlights or []
-    }
-
-@app.get("/courses/enrolled")
-async def get_enrolled_courses(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    # verify user is student
-    if current_user.role != UserRole.STUDENT:
-        raise HTTPException(
-            status_code=403,
-            detail="Only students can view enrolled courses"
-        )
-    
-    # get enrolled courses
-    enrolled_courses = db.query(Course).join(
-        Enrollment, Course.id == Enrollment.course_id
-    ).filter(
-        Enrollment.student_id == current_user.id
-    ).all()
-    
-    return [
-        {
-            "id": course.id,
-            "title": course.title,
-            "description": course.description,
-            "professor_id": course.professor_id,
-            "difficulty": course.difficulty,
-            "estimated_hours": course.estimated_hours
-        }
-        for course in enrolled_courses
-    ]
 
 if __name__ == "__main__":
     uvicorn.run(
