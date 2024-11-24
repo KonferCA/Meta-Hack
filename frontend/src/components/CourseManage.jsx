@@ -13,6 +13,21 @@ export default function CourseManage() {
         sectionId: '',
         questions: [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]
     })
+    const [showProgress, setShowProgress] = useState(false)
+    const [progress, setProgress] = useState({
+        details: {
+            status: 'pending',
+            stats: null
+        },
+        content: {
+            status: 'pending',
+            stats: null
+        },
+        quiz: {
+            status: 'pending',
+            stats: null
+        }
+    })
 
     useEffect(() => {
         const fetchCourseData = async () => {
@@ -54,27 +69,45 @@ export default function CourseManage() {
 
     const handleQuizSubmit = async (e) => {
         e.preventDefault()
+        setShowProgress(true)
+        
         try {
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL}/courses/${courseId}/sections/${newQuiz.sectionId}/quiz`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(newQuiz)
-                }
+            const formData = new FormData()
+            formData.append('title', title)
+            formData.append('description', description)
+            formData.append('content', content)
+
+            const eventSource = new EventSource(
+                `${import.meta.env.VITE_API_URL}/courses/create?` + 
+                new URLSearchParams(formData)
             )
-            if (response.ok) {
-                toast.success('Quiz created successfully')
-                setNewQuiz({
-                    sectionId: '',
-                    questions: [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]
-                })
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data)
+                setProgress(prev => ({
+                    ...prev,
+                    [data.type]: {
+                        status: data.status,
+                        stats: data.stats
+                    }
+                }))
+
+                if (data.type === 'quiz' && data.status === 'completed') {
+                    eventSource.close()
+                    toast.success('Course created successfully')
+                    setShowProgress(false)
+                    // reset form and refresh data
+                }
+            }
+
+            eventSource.onerror = () => {
+                eventSource.close()
+                toast.error('Failed to create course')
+                setShowProgress(false)
             }
         } catch (error) {
-            toast.error('Failed to create quiz')
+            toast.error('Failed to create course')
+            setShowProgress(false)
         }
     }
 

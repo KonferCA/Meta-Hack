@@ -144,14 +144,14 @@ async def query_grok_quiz(content: str) -> str:
             }
             
             Guidelines:
+            - Generate EXACTLY 4 questions
             - Questions should test understanding, not just memorization
             - Wrong answers should be plausible but clearly incorrect
-            - Include 3-5 questions per section
             - Vary question difficulty
             - Focus on core concepts and practical applications
             - Keep language clear and unambiguous
             
-            IMPORTANT: Return ONLY the JSON array, no additional text or formatting."""
+            IMPORTANT: Return ONLY the JSON array with exactly 4 questions, no additional text or formatting."""
         },
         {
             "role": "user",
@@ -193,9 +193,9 @@ async def generate_quiz(content: str) -> list:
             print("Invalid response format - expected a list")
             return []
             
-        # validate quiz format
+        # validate quiz format and limit number of questions
         validated_questions = []
-        for question in questions:
+        for question in questions[:5]:  # limit to first 5 questions
             print("\nValidating question:", question)
             if not all(key in question for key in ["question", "options", "correctAnswer"]):
                 print("Missing required fields")
@@ -209,7 +209,7 @@ async def generate_quiz(content: str) -> list:
             print("Question validated successfully")
             validated_questions.append(question)
         
-        return validated_questions
+        return validated_questions[:5]  # ensure we never return more than 5 questions
         
     except json.JSONDecodeError as e:
         print("\nJSON Parse Error:", str(e))

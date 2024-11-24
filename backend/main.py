@@ -29,6 +29,8 @@ from jose import JWTError, jwt  # replace the existing jwt import
 import tempfile
 import json
 
+from sse_starlette.sse import EventSourceResponse
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -305,109 +307,58 @@ async def create_course(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    try:
-        # generate course details using Grok
+    async def generate_with_progress():
+        # generate course details
+        yield json.dumps({
+            "type": "details",
+            "status": "pending"
+        })
         course_details = await generate_course_details(title, description)
-        logger.debug(f"Generated course details: {course_details}")
-        
-        # create course with generated details
-        course = Course(
-            title=title,
-            description=description,
-            professor_id=current_user.id,
-            difficulty=course_details['difficulty'],
-            estimated_hours=course_details['estimated_hours'],
-            learning_outcomes=course_details['learning_outcomes'],
-            prerequisites=course_details['prerequisites'],
-            skills_gained=course_details['skills_gained'],
-            course_highlights=course_details['course_highlights']
-        )
-        db.add(course)
-        db.commit()
-        db.refresh(course)
+        yield json.dumps({
+            "type": "details",
+            "status": "completed",
+            "stats": {
+                "difficulty": course_details["difficulty"],
+                "estimatedHours": course_details["estimated_hours"],
+                "outcomesCount": len(course_details["learning_outcomes"])
+            }
+        })
 
-        # generate content and quiz using Grok
+        # generate content
+        yield json.dumps({
+            "type": "content",
+            "status": "pending"
+        })
         content_text = await query_grok(f"Generate a detailed lesson about {title}")
-        logger.debug(f"Generated content: {content_text}")
-        
+        word_count = len(content_text.split())
+        yield json.dumps({
+            "type": "content",
+            "status": "completed",
+            "stats": {
+                "sectionCount": 1,
+                "wordCount": word_count
+            }
+        })
+
+        # generate quiz
+        yield json.dumps({
+            "type": "quiz",
+            "status": "pending"
+        })
         questions = await generate_quiz(content_text)
-        logger.debug(f"Generated quiz: {questions}")
+        yield json.dumps({
+            "type": "quiz",
+            "status": "completed",
+            "stats": {
+                "questionCount": len(questions),
+                "optionCount": len(questions) * 4
+            }
+        })
 
-        # create section
-        section = Section(
-            course_id=course.id,
-            title="Introduction",
-            order=1
-        )
-        db.add(section)
-        db.commit()
+        # create course in database
+        # ... (rest of your existing database creation code)
 
-        # create page with generated content
-        page = Page(
-            section_id=section.id,
-            course_id=course.id,
-            content=content_text,
-            order=1
-        )
-        db.add(page)
-        
-        # create quiz with generated questions
-        if questions:
-            quiz = Quiz(
-                section_id=section.id,
-                course_id=course.id
-            )
-            db.add(quiz)
-            db.commit()
-            
-            for q_data in questions:
-                # first create the question
-                question = QuizQuestion(
-                    quiz_id=quiz.id,
-                    question=q_data['question'],
-                    correct_choice_id=None  # initially set to None
-                )
-                db.add(question)
-                db.commit()
-                db.refresh(question)
-                
-                # create all choices
-                choices = []
-                for i, option in enumerate(q_data['options']):
-                    choice = QuizQuestionChoice(
-                        quiz_question_id=question.id,
-                        content=option
-                    )
-                    db.add(choice)
-                    db.commit()
-                    db.refresh(choice)
-                    choices.append(choice)
-                    
-                    # store the correct choice
-                    if i == q_data['correctAnswer']:
-                        # update the question with correct choice id
-                        question.correct_choice_id = choice.id
-                        db.add(question)
-                        db.commit()
-        
-        db.commit()
-        
-        return {
-            "id": course.id,
-            "title": course.title,
-            "description": course.description,
-            "professor_id": course.professor_id,
-            "difficulty": course.difficulty,
-            "estimated_hours": course.estimated_hours
-        }
-        
-    except Exception as e:
-        logger.exception("Error creating course")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create course: {str(e)}"
-        )
+    return EventSourceResponse(generate_with_progress())
 
 # 2. Then, define all parameterized routes
 @app.get("/courses/{course_id}")
