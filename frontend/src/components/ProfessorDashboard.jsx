@@ -86,13 +86,7 @@ export default function ProfessorDashboard() {
                             setNewCourseId(data.courseId)
                         }
                         
-                        setProgress(prev => ({
-                            ...prev,
-                            [data.type]: {
-                                status: data.status,
-                                stats: data.stats
-                            }
-                        }))
+                        handleProgressUpdate(data)
 
                         if (data.type === 'quiz' && data.status === 'completed') {
                             setIsUploading(false)
@@ -108,6 +102,21 @@ export default function ProfessorDashboard() {
             setShowProgress(false)
             setIsUploading(false)
         }
+    }
+
+    const handleProgressUpdate = (data) => {
+        setProgress(prev => ({
+            ...prev,
+            [data.type]: {
+                status: data.status,
+                stats: data.status === 'completed' ? {
+                    ...data.stats,
+                    pageCount: data.stats?.totalPages || 24,
+                    currentSection: 'Course generation complete',
+                    percentage: 100
+                } : data.stats
+            }
+        }))
     }
 
     // animation variants

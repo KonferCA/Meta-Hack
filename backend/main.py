@@ -333,6 +333,11 @@ async def create_course(
         db.commit()
         db.refresh(course)
         
+        # Send the course ID immediately after creation
+        yield json.dumps({
+            "courseId": course.id
+        })
+        
         # Helper function for progress updates
         async def send_progress(type_name, status, current, total, extra_stats=None):
             stats = {
@@ -351,18 +356,42 @@ async def create_course(
             await asyncio.sleep(0.2)
 
         # Initial course creation progress
-        for i in range(1, 6):
+        try:
+            # Generate course details first
+            course_details = await generate_course_details(title, content)
+            course.difficulty = course_details.get("difficulty")
+            course.estimated_hours = course_details.get("estimated_hours")
+            course.learning_outcomes = course_details.get("learning_outcomes", [])
+            db.commit()
+
+            # Send progress updates for course details generation
+            steps = ["Analyzing content", "Determining difficulty", "Estimating duration", "Generating outcomes", "Finalizing details"]
+            for i, step in enumerate(steps, 1):
+                yield json.dumps({
+                    "type": "details",
+                    "status": "generating" if i < len(steps) else "completed",
+                    "stats": {
+                        "current": i,
+                        "total": len(steps),
+                        "percentage": (i / len(steps)) * 100,
+                        "step": step,
+                        "difficulty": course_details.get("difficulty"),
+                        "estimatedHours": course_details.get("estimated_hours"),
+                        "outcomesCount": len(course_details.get("learning_outcomes", []))
+                    }
+                })
+                await asyncio.sleep(0.2)
+        except Exception as e:
+            logger.error(f"Error generating course details: {e}")
+            # Send error status
             yield json.dumps({
                 "type": "details",
-                "status": "generating",
+                "status": "error",
                 "stats": {
-                    "current": i,
-                    "total": 5,
-                    "percentage": i * 20,
-                    "step": "Analyzing course requirements..."
+                    "step": "Error generating course details",
+                    "error": str(e)
                 }
             })
-            await asyncio.sleep(0.2)
 
         # Content generation progress
         total_sections = len(sections)
@@ -378,6 +407,8 @@ async def create_course(
                 "stats": {
                     "sectionCount": section_num,
                     "totalSections": total_sections,
+                    "pageCount": current_page,
+                    "totalPages": total_pages,
                     "percentage": round((section_num / total_sections) * 100, 1),
                     "currentSection": section_title,
                     "step": f"Creating section: {section_title}",
@@ -456,8 +487,10 @@ async def create_course(
             "type": "content",
             "status": "completed",
             "stats": {
-                "sectionCount": total_sections,
+                "pageCount": total_pages,
                 "totalPages": total_pages,
+                "currentSection": "Course generation complete",
+                "percentage": 100,
                 "wordCount": total_word_count
             }
         })

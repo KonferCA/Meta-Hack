@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { FiBook, FiClipboard, FiHelpCircle } from 'react-icons/fi'
 
 export default function GenerationProgress({ progress, courseId }) {
     const navigate = useNavigate()
@@ -15,7 +16,6 @@ export default function GenerationProgress({ progress, courseId }) {
     // show success animation when all complete
     useEffect(() => {
         if (isAllCompleted) {
-            // delay before showing success
             const timer = setTimeout(() => {
                 setShowSuccess(true)
             }, 1000)
@@ -26,41 +26,78 @@ export default function GenerationProgress({ progress, courseId }) {
     const categories = [
         {
             name: 'Course Details',
-            icon: '📋',
+            icon: <FiClipboard className="w-6 h-6" />,
             status: progress.details?.status || 'pending',
-            stats: progress.details?.stats || null
+            stats: progress.details?.stats || null,
+            loadingAnimation: (
+                <motion.div 
+                    className="w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+            )
         },
         {
             name: 'Course Content',
-            icon: '📚',
+            icon: <FiBook className="w-6 h-6" />,
             status: progress.content?.status || 'pending',
-            stats: progress.content?.stats || null
+            stats: progress.content?.stats || null,
+            loadingAnimation: (
+                <motion.div 
+                    className="flex space-x-1"
+                    animate={{ scale: [1, 0.8, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                >
+                    {[...Array(3)].map((_, i) => (
+                        <div 
+                            key={i}
+                            className="w-2 h-2 bg-blue-500 rounded-full"
+                            style={{ animationDelay: `${i * 0.2}s` }}
+                        />
+                    ))}
+                </motion.div>
+            )
         },
         {
             name: 'Quiz Generation',
-            icon: '❓',
+            icon: <FiHelpCircle className="w-6 h-6" />,
             status: progress.quiz?.status || 'pending',
-            stats: progress.quiz?.stats || null
+            stats: progress.quiz?.stats || null,
+            loadingAnimation: (
+                <motion.div 
+                    className="w-6 h-6 relative"
+                    animate={{ rotate: [0, 180, 360] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                    <div className="absolute inset-0 border-2 border-blue-500 rounded-full" 
+                        style={{ clipPath: "polygon(50% 50%, 100% 0, 100% 100%)" }} />
+                </motion.div>
+            )
         }
     ]
 
     const handleViewCourse = () => {
-        navigate({ 
-            to: '/course/$courseId/manage',
+        navigate({
+            to: '/course/$courseId',
             params: { courseId: courseId.toString() }
         })
     }
 
-    const renderProgressBar = (current, total) => (
-        <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-            <motion.div
-                className="bg-blue-500 h-2 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(current / total) * 100}%` }}
-                transition={{ duration: 0.2 }}
-            />
-        </div>
-    )
+    const renderProgressBar = (current, total) => {
+        // ensure we have valid numbers and calculate percentage
+        const percentage = total > 0 ? Math.min((current / total) * 100, 100) : 0
+        
+        return (
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <motion.div
+                    className="bg-blue-500 h-2 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percentage}%` }}
+                    transition={{ duration: 0.2 }}
+                />
+            </div>
+        )
+    }
 
     const renderDetailedStats = (cat) => {
         switch (cat.name) {
@@ -70,11 +107,17 @@ export default function GenerationProgress({ progress, courseId }) {
                         {cat.stats?.step && (
                             <p className="text-sm text-gray-600">{cat.stats.step}</p>
                         )}
-                        {cat.stats?.percentage && renderProgressBar(cat.stats.current, cat.stats.total)}
+                        {(cat.stats?.current && cat.stats?.total) && (
+                            renderProgressBar(cat.stats.current, cat.stats.total)
+                        )}
                         <ul className="list-disc pl-4 text-sm">
-                            {cat.stats?.difficulty && <li>Difficulty: {cat.stats.difficulty}</li>}
-                            {cat.stats?.estimatedHours && <li>Duration: {cat.stats.estimatedHours} hours</li>}
-                            {cat.stats?.outcomesCount && <li>{cat.stats.outcomesCount} learning outcomes</li>}
+                            {cat.status === 'completed' && (
+                                <>
+                                    {cat.stats?.difficulty && <li>Difficulty: {cat.stats.difficulty}</li>}
+                                    {cat.stats?.estimatedHours && <li>Duration: {cat.stats.estimatedHours} hours</li>}
+                                    {cat.stats?.outcomesCount && <li>{cat.stats.outcomesCount} learning outcomes</li>}
+                                </>
+                            )}
                         </ul>
                     </div>
                 )
@@ -84,10 +127,12 @@ export default function GenerationProgress({ progress, courseId }) {
                         {cat.stats?.step && (
                             <p className="text-sm text-gray-600">{cat.stats.step}</p>
                         )}
-                        {cat.stats?.percentage && renderProgressBar(cat.stats.current, cat.stats.total)}
+                        {renderProgressBar(cat.stats?.pageCount || 0, cat.stats?.totalPages || 24)}
                         <ul className="list-disc pl-4 text-sm">
                             <li>{cat.stats?.currentSection || 'Preparing sections...'}</li>
-                            <li>{cat.stats?.pageCount || 0} of {cat.stats?.totalPages || '...'} pages</li>
+                            <li>
+                                {`${cat.stats?.pageCount || cat.stats?.current || 0} of ${cat.stats?.totalPages || 24} pages`}
+                            </li>
                             <li>{cat.stats?.wordCount || 0} words generated</li>
                         </ul>
                     </div>
@@ -98,7 +143,11 @@ export default function GenerationProgress({ progress, courseId }) {
                         {cat.stats?.step && (
                             <p className="text-sm text-gray-600">{cat.stats.step}</p>
                         )}
-                        {cat.stats?.percentage && renderProgressBar(cat.stats.current, cat.stats.total)}
+                        {cat.status === 'completed' ? (
+                            renderProgressBar(1, 1)  // full bar when complete
+                        ) : cat.stats?.questionCount ? (
+                            renderProgressBar(cat.stats.questionCount, 4)  // assuming 4 questions total
+                        ) : null}
                         <ul className="list-disc pl-4 text-sm">
                             <li>{cat.stats?.questionCount || 0} questions generated</li>
                             <li>{cat.stats?.optionCount || 0} total answer options</li>
@@ -119,34 +168,49 @@ export default function GenerationProgress({ progress, courseId }) {
             >
                 <h2 className="text-2xl font-bold mb-6">Generating Your Course</h2>
                 
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {categories.map(cat => (
-                        <div key={cat.name} className="border rounded-lg p-4">
-                            <div className="flex items-center gap-3 mb-4">
-                                <span className="text-2xl">{cat.icon}</span>
-                                <h3 className="text-lg font-semibold">{cat.name}</h3>
-                                {cat.status === 'pending' && (
-                                    <motion.div 
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                        className="ml-auto"
-                                    >
-                                        ⚡
-                                    </motion.div>
-                                )}
-                                {cat.status === 'completed' && (
-                                    <motion.div 
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        className="ml-auto text-green-500 text-xl"
-                                    >
-                                        ✓
-                                    </motion.div>
-                                )}
-                            </div>
-                            
-                            {renderDetailedStats(cat)}
-                        </div>
+                        <motion.div 
+                            key={cat.name}
+                            layout
+                            animate={{
+                                height: cat.status === 'pending' ? 'auto' : '100%',
+                                scale: cat.status === 'pending' ? 1.02 : 1
+                            }}
+                            className="border rounded-lg overflow-hidden"
+                        >
+                            <motion.div 
+                                layout="position"
+                                className={`p-4 ${
+                                    cat.status === 'pending' 
+                                        ? 'bg-blue-50' 
+                                        : cat.status === 'completed'
+                                        ? 'bg-green-50'
+                                        : 'bg-white'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className="text-blue-600">{cat.icon}</span>
+                                    <h3 className="text-lg font-semibold">{cat.name}</h3>
+                                    {cat.status === 'pending' && (
+                                        <div className="ml-auto">
+                                            {cat.loadingAnimation}
+                                        </div>
+                                    )}
+                                    {cat.status === 'completed' && (
+                                        <motion.div 
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            className="ml-auto text-green-500 text-xl"
+                                        >
+                                            ✓
+                                        </motion.div>
+                                    )}
+                                </div>
+                                
+                                {renderDetailedStats(cat)}
+                            </motion.div>
+                        </motion.div>
                     ))}
                 </div>
 

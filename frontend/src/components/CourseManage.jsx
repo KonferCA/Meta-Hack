@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
+import GenerationProgress from './GenerationProgress'
 
 export default function CourseManage() {
     const { courseId } = useParams({ from: '/course/$courseId/manage' })
@@ -182,6 +183,13 @@ export default function CourseManage() {
                     ))}
                 </div>
             </section>
+
+            {showProgress && (
+                <GenerationProgress 
+                    progress={progress} 
+                    courseId={course?.id}
+                />
+            )}
         </div>
     )
 } 
