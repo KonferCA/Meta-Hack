@@ -56,7 +56,7 @@ def generate_initial_note(page_content, model, tokenizer):
     )
     final_output = ""
     for output in outputs:
-        final_output += tokenizer.decode(output, skip_special_tokens=True).to(device)
+        final_output += tokenizer.decode(output, skip_special_tokens=True)
     return final_output
 
 def generate_note(page_content, note_content, model, tokenizer):
