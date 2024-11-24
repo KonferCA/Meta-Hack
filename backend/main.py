@@ -977,6 +977,11 @@ async def enroll_in_course(
     
     return {"message": "Successfully enrolled in course"}
 
+@app.get("/course/{course_id}/notes")
+async def get_notes_progress(course_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    items = db.query(models.Page).filter(models.Page.course_id == course_id).join(models.Note.student_id == current_user.id and models.Page.course_id == course_id).all()
+    return { "items": items }
+
 @app.post("/quizzes/{quiz_id}/review/feedback")
 async def submit_review_feedback(
     quiz_id: int,
