@@ -8,18 +8,8 @@ import json
 import re
 from pathlib import Path
 
-GROK_API_KEY = os.getenv("GROK_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROK_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
-print(f"Using GROQ API key: {GROK_API_KEY[:10]}...")
 async def query_grok(prompt: str) -> str:
     try:
         api_key = os.environ.get('GROQ_API_KEY')
@@ -151,7 +141,7 @@ async def process_pdf_content(content: str) -> str:
 
 async def query_grok_quiz(content: str) -> str:
     try:
-        api_key = GROK_API_KEY
+        api_key = GROQ_API_KEY
         if not api_key:
             print("Warning: GROQ_API_KEY not found in environment variables")
             return "Error: Missing API key"
