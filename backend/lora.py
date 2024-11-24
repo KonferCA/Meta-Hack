@@ -117,7 +117,6 @@ def apply_lora_weights_to_model(base_model_name, lora_weights_dir):
         device_map="auto",
         quantization_config=bnb_config,
         torch_dtype=torch.float16,
-        max_new_tokens=8096
     )
 
     model = PeftModel.from_pretrained(base_model, lora_weights_dir)
