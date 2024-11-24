@@ -341,6 +341,9 @@ async def create_course(
                                     text = page.extract_text()
                                     if text:
                                         section_content += text + "\n\n"
+                                # limit to 50 words
+                                words = section_content.split()[:50]
+                                section_content = " ".join(words)
                                 if section_content:
                                     pdf_contents.append((Path(file).stem, section_content))
             else:
@@ -351,6 +354,9 @@ async def create_course(
                         text = page.extract_text()
                         if text:
                             section_content += text + "\n\n"
+                    # limit to 50 words
+                    words = section_content.split()[:50]
+                    section_content = " ".join(words)
                     if section_content:
                         pdf_contents.append((Path(content.filename).stem, section_content))
             
