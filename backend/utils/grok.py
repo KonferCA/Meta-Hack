@@ -102,7 +102,7 @@ async def query_grok(content: str) -> str:
     
     
     payload = {
-        "model": "gemma-7b-it",
+        "model": "llama3-groq-8b-8192-tool-use-preview",
         "messages": messages,
         "temperature": 0.7,
         "max_tokens": 5
@@ -169,7 +169,7 @@ async def query_grok_quiz(content: str) -> str:
     ]
     
     payload = {
-        "model": "llama-3.2-1b-preview",
+        "model": "llama3-groq-8b-8192-tool-use-preview",
         "messages": messages,
         "temperature": 0.7,  # lower temperature for more consistent output
         "max_tokens": 4096   # reduced since quiz responses are shorter
