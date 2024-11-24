@@ -21,7 +21,7 @@ export default function Root() {
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
                             <Link to="/" className="text-xl font-bold text-blue-600">
-                                LearnHub
+                                LlamaLearn
                             </Link>
                         </div>
                         
@@ -90,7 +90,7 @@ export default function Root() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div>
-                            <h3 className="text-lg font-semibold mb-4">LearnHub</h3>
+                            <h3 className="text-lg font-semibold mb-4">LlamaLearn</h3>
                             <p className="text-gray-400">
                                 Empowering education through technology
                             </p>
@@ -113,13 +113,13 @@ export default function Root() {
                         <div>
                             <h3 className="text-lg font-semibold mb-4">Contact</h3>
                             <p className="text-gray-400">
-                                Email: support@learnhub.com<br />
+                                Email: support@llamalearn.com<br />
                                 Phone: (555) 123-4567
                             </p>
                         </div>
                     </div>
                     <div className="mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
-                        © 2024 LearnHub. All rights reserved.
+                        © 2024 LlamaLearn. All rights reserved.
                     </div>
                 </div>
             </footer>

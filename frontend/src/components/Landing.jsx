@@ -148,7 +148,7 @@ export default function Landing() {
                         className="text-center mb-20"
                     >
                         <h2 className="text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
-                            Why Students Love LearnHub
+                            Why Students Love LlamaLearn
                         </h2>
                         <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                             Experience a revolutionary way of learning that adapts to your needs
@@ -191,7 +191,7 @@ export default function Landing() {
                     </motion.h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                         <TestimonialCard 
-                            quote="LearnHub completely changed how I study. I've improved my grades significantly!"
+                            quote="LlamaLearn completely changed how I study!!"
                             author="Sarah K."
                             role="Medical Student"
                             image="/testimonial1.jpg"
@@ -228,7 +228,7 @@ export default function Landing() {
                     >
                         <h2 className="text-5xl font-bold mb-8 text-white">Ready to Transform Your Learning?</h2>
                         <p className="text-xl mb-12 text-blue-100 max-w-2xl mx-auto">
-                            Join thousands of students who are already learning smarter with LearnHub
+                            Join thousands of students who are already learning smarter with LlamaLearn
                         </p>
                         <Link
                             to="/register"
