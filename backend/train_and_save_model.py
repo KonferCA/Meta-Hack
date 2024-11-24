@@ -1,5 +1,11 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+    DataCollatorForLanguageModeling
+)
 from peft import (
     get_peft_model,
     LoraConfig,
@@ -134,13 +140,17 @@ class EfficientPerUserTrainer:
         def tokenize_function(examples):
             if not isinstance(examples["text"], (str, list)):
                 raise ValueError(f"Invalid text format: {type(examples['text'])}")
-            return self.tokenizer(
+            tokens = self.tokenizer(
                 examples["text"],
                 padding="max_length",
                 truncation=True,
                 max_length=512,
-                return_tensors=None
+                return_tensors="pt"
             )
+            return {
+                "input_ids": tokens["input_ids"].squeeze(0),
+                "attention_mask": tokens["attention_mask"].squeeze(0)
+            }
         
         try:
             tokenized_dataset = dataset.map(
@@ -151,13 +161,19 @@ class EfficientPerUserTrainer:
         except Exception as e:
             raise ValueError(f"Error tokenizing dataset: {str(e)}")
         
+        # Use Hugging Face's data collator
+        data_collator = DataCollatorForLanguageModeling(
+            tokenizer=self.tokenizer,
+            mlm=False  # Causal LM, not masked LM
+        )
+        
         # Train model
         training_args = self.prepare_training_args()
         trainer = Trainer(
             model=model,
             args=training_args,
             train_dataset=tokenized_dataset,
-            data_collator=lambda data: {'input_ids': torch.stack([torch.tensor(f) for f in data])}
+            data_collator=data_collator
         )
         
         trainer.train()
@@ -209,6 +225,7 @@ class EfficientPerUserTrainer:
         )
         return size_bytes / (1024 * 1024)  # Convert to MB
 
+
 async def main():
     trainer = EfficientPerUserTrainer(
         output_dir="user_adapters"
@@ -255,6 +272,7 @@ async def main():
         if hasattr(e, '__traceback__'):
             import traceback
             traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
