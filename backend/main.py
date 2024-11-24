@@ -728,23 +728,40 @@ async def seed(current_user: User = Depends(get_current_user), db: Session = Dep
     course = models.Course(
         title="a",
         description = "desc",
-        professor_id = current_user.id,
+        professor_id=current_user.id,
+        difficulty="easy",
+        estimated_hours="20",
     )
     db.add(course)
+    db.commit()
+    db.refresh(course)
     section = models.Section(
         title="b",
         order=0,
         course_id=course.id,
     )
     db.add(section)
+    db.commit()
+    db.refresh(section)
     page = models.Page(
-        contetn="Some content about Linear Algebra",
+        content="Some content about Linear Algebra",
         order=0,
         section_id=section.id,
     )
     db.add(page)
     db.commit()
     return
+
+@app.get("/note")
+async def note(db: Session = Depends(get_db)):
+    page = db.query(models.Page).filter(models.Page.id == 1).first()
+    if page is None:
+        raise HTTPException(status_code=500, detail="Feedback done for a page note that doesn't exists")
+    # note = generate_note(page.content, old_note.content, model, tokenizer)
+    model, tokenizer = load_base_model()
+    note = generate_initial_note(page.content, model, tokenizer)
+
+    return {"note": note}
 
 # one route to give feedback
 class FeedbackCreate(BaseModel):
@@ -777,10 +794,10 @@ async def feedback(fb: FeedbackCreate, current_user: User = Depends(get_current_
             model, tokenizer = load_user_model(current_user.id)
         else:
             model, tokenizer = load_base_model()
-        page = db.query(models.Page).filter(models.Page.id == fb.note_id).first()
+        old_note = db.query(models.Note).filter(models.Note.id == fb.note_id).first()
+        page = db.query(models.Page).filter(models.Page.id == old_note.page_id).first()
         if page is None:
             raise HTTPException(status_code=500, detail="Feedback done for a page note that doesn't exists")
-        old_note = db.query(models.Note).filter(models.Note.id == fb.note_id).first()
         note = generate_note(page.content, old_note.content, model, tokenizer)
         new_page = models.Note(
             student_id=current_user.id,
