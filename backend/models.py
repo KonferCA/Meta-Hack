@@ -94,6 +94,7 @@ class Page(Base):
     order = Column(Integer)
     section_id = Column(Integer, ForeignKey("sections.id"))
     course_id = Column(Integer, ForeignKey("courses.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # relationships
     section = relationship("Section", back_populates="pages")

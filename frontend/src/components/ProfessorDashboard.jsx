@@ -21,6 +21,7 @@ export default function ProfessorDashboard() {
         description: '',
         content: null
     })
+    const [newCourseId, setNewCourseId] = useState(null)
 
     useEffect(() => {
         const fetchCourses = async () => {
@@ -80,6 +81,11 @@ export default function ProfessorDashboard() {
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const data = JSON.parse(line.slice(6))
+                        
+                        if (data.courseId) {
+                            setNewCourseId(data.courseId)
+                        }
+                        
                         setProgress(prev => ({
                             ...prev,
                             [data.type]: {
@@ -88,15 +94,9 @@ export default function ProfessorDashboard() {
                             }
                         }))
 
-                        // If quiz is completed, we're done
                         if (data.type === 'quiz' && data.status === 'completed') {
-                            setShowProgress(false)
                             setIsUploading(false)
-                            toast.success('Course created successfully!')
-                            // Reset form and refresh courses
                             setNewCourse({ title: '', description: '', content: null })
-                            // Fetch updated courses list
-                            fetchCourses()
                         }
                     }
                 }
@@ -233,19 +233,19 @@ export default function ProfessorDashboard() {
                         <motion.div
                             key={course.id}
                             variants={itemVariants}
-                            whileHover={{ y: -5, scale: 1.02 }}
+                            whileHover={{ y: -3, scale: 1.01 }}
                             className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all"
                         >
                             <h3 className="text-xl font-bold text-gray-800 mb-2">{course.title}</h3>
                             <p className="text-gray-600 mb-4">{course.description}</p>
                             <motion.div
-                                whileHover={{ scale: 1.05 }}
+                                whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.95 }}
                             >
                                 <Link 
                                     to="/course/$courseId/manage"
                                     params={{ courseId: course.id.toString() }}
-                                    className="block text-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all"
+                                    className="block text-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all hover:text-white"
                                 >
                                     Manage Course
                                 </Link>
@@ -256,7 +256,10 @@ export default function ProfessorDashboard() {
             </motion.section>
 
             {showProgress && (
-                <GenerationProgress progress={progress} />
+                <GenerationProgress 
+                    progress={progress}
+                    courseId={newCourseId}
+                />
             )}
         </motion.div>
     )

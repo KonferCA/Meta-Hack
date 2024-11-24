@@ -31,6 +31,8 @@ import json
 
 from sse_starlette.sse import EventSourceResponse
 
+import asyncio  # Add this at the top
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -308,56 +310,209 @@ async def create_course(
     db: Session = Depends(get_db)
 ):
     async def generate_with_progress():
-        # generate course details
+        # Define sections list at the start
+        sections = [
+            "Introduction",
+            "Key Concepts",
+            "Fundamentals",
+            "Core Principles",
+            "Practical Applications",
+            "Advanced Topics",
+            "Case Studies",
+            "Summary and Conclusions"
+        ]
+        pages_per_section = 3
+        
+        # Create initial course
+        course = Course(
+            title=title,
+            description=description,
+            professor_id=current_user.id
+        )
+        db.add(course)
+        db.commit()
+        db.refresh(course)
+        
+        # Helper function for progress updates
+        async def send_progress(type_name, status, current, total, extra_stats=None):
+            stats = {
+                "current": current,
+                "total": total,
+                "percentage": round((current / total) * 100, 1)
+            }
+            if extra_stats:
+                stats.update(extra_stats)
+            
+            yield json.dumps({
+                "type": type_name,
+                "status": status,
+                "stats": stats
+            })
+            await asyncio.sleep(0.2)
+
+        # Initial course creation progress
+        for i in range(1, 6):
+            yield json.dumps({
+                "type": "details",
+                "status": "generating",
+                "stats": {
+                    "current": i,
+                    "total": 5,
+                    "percentage": i * 20,
+                    "step": "Analyzing course requirements..."
+                }
+            })
+            await asyncio.sleep(0.2)
+
+        # Content generation progress
+        total_sections = len(sections)
+        total_pages = total_sections * pages_per_section
+        current_page = 0
+        total_word_count = 0
+
+        for section_num, section_title in enumerate(sections, 1):
+            # Section creation progress
+            yield json.dumps({
+                "type": "content",
+                "status": "creating_section",
+                "stats": {
+                    "sectionCount": section_num,
+                    "totalSections": total_sections,
+                    "percentage": round((section_num / total_sections) * 100, 1),
+                    "currentSection": section_title,
+                    "step": f"Creating section: {section_title}",
+                    "wordCount": total_word_count
+                }
+            })
+            await asyncio.sleep(0.2)
+
+            section = Section(title=section_title, order=section_num, course_id=course.id)
+            db.add(section)
+            db.commit()
+            db.refresh(section)
+
+            for page_num in range(pages_per_section):
+                current_page += 1
+                
+                # Page generation progress
+                yield json.dumps({
+                    "type": "content",
+                    "status": "generating_page",
+                    "stats": {
+                        "sectionCount": section_num,
+                        "totalSections": total_sections,
+                        "pageCount": current_page,
+                        "totalPages": total_pages,
+                        "currentSection": section_title,
+                        "currentPage": f"Page {page_num + 1}",
+                        "percentage": round((current_page / total_pages) * 100, 1),
+                        "step": f"Generating content for {section_title} - Page {page_num + 1}",
+                        "wordCount": total_word_count
+                    }
+                })
+                await asyncio.sleep(0.2)
+
+                # Generate page content
+                page_prompts = {
+                    0: f"Generate an overview and introduction for the '{section_title}' section about {title}.",
+                    1: f"Generate detailed explanations and examples for the '{section_title}' section about {title}.",
+                    2: f"Generate practical applications and key takeaways for the '{section_title}' section about {title}."
+                }
+                content_text = await query_grok(page_prompts[page_num])
+                
+                # Update word count before creating the page
+                total_word_count += len(content_text.split())
+                
+                # Create page
+                page = Page(
+                    content=content_text,
+                    order=page_num + 1,
+                    section_id=section.id,
+                    course_id=course.id
+                )
+                db.add(page)
+                db.commit()
+
+                # Send progress update after page creation
+                yield json.dumps({
+                    "type": "content",
+                    "status": "page_completed",
+                    "stats": {
+                        "sectionCount": section_num,
+                        "totalSections": total_sections,
+                        "pageCount": current_page,
+                        "totalPages": total_pages,
+                        "currentSection": section_title,
+                        "currentPage": f"Page {page_num + 1}",
+                        "percentage": round((current_page / total_pages) * 100, 1),
+                        "wordCount": total_word_count,
+                        "step": f"Completed {section_title} - Page {page_num + 1}"
+                    }
+                })
+                await asyncio.sleep(0.2)
+
+        # Final content completion message
         yield json.dumps({
-            "type": "details",
-            "status": "pending"
-        })
-        course_details = await generate_course_details(title, description)
-        yield json.dumps({
-            "type": "details",
+            "type": "content",
             "status": "completed",
             "stats": {
-                "difficulty": course_details["difficulty"],
-                "estimatedHours": course_details["estimated_hours"],
-                "outcomesCount": len(course_details["learning_outcomes"])
+                "sectionCount": total_sections,
+                "totalPages": total_pages,
+                "wordCount": total_word_count
             }
         })
 
-        # generate content
-        yield json.dumps({
-            "type": "content",
-            "status": "pending"
-        })
-        content_text = await query_grok(f"Generate a detailed lesson about {title}")
-        word_count = len(content_text.split())
-        yield json.dumps({
-            "type": "content",
-            "status": "completed",
-            "stats": {
-                "sectionCount": 1,
-                "wordCount": word_count
-            }
-        })
-
-        # generate quiz
+        # Generate and save quiz
         yield json.dumps({
             "type": "quiz",
             "status": "pending"
         })
-        questions = await generate_quiz(content_text)
+        questions_data = await generate_quiz(content_text)
+
+        # Create quiz with both section_id and course_id
+        quiz = Quiz(
+            section_id=section.id,
+            course_id=course.id
+        )
+        db.add(quiz)
+        db.commit()
+        db.refresh(quiz)
+
+        # Create questions with their choices
+        for q_data in questions_data:
+            # Create the question
+            question = QuizQuestion(
+                quiz_id=quiz.id,
+                question=q_data['question']
+            )
+            db.add(question)
+            db.commit()
+            db.refresh(question)
+            
+            # Create choices for the question
+            for i, option_text in enumerate(q_data['options']):
+                choice = QuizQuestionChoice(
+                    quiz_question_id=question.id,
+                    content=option_text
+                )
+                db.add(choice)
+                db.commit()
+                
+                # If this is the correct answer, update the question
+                if i == q_data['correctAnswer']:
+                    question.correct_choice_id = choice.id
+                    db.commit()
+
         yield json.dumps({
             "type": "quiz",
             "status": "completed",
             "stats": {
-                "questionCount": len(questions),
-                "optionCount": len(questions) * 4
+                "questionCount": len(questions_data),
+                "optionCount": len(questions_data) * 4
             }
         })
 
-        # create course in database
-        # ... (rest of your existing database creation code)
-
+    # Return the EventSourceResponse outside the generator function
     return EventSourceResponse(generate_with_progress())
 
 # 2. Then, define all parameterized routes
