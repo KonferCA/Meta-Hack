@@ -80,20 +80,28 @@ def generate_note(page_content, note_content, model, tokenizer):
         state = model.get_state(page_content, note_content)
         outputs = model.act(state)
         return tokenizer.decode(outputs[0], skip_special_tokens=True)
-    else:
-        # fallback to original implementation
-        inputs = tokenizer(f"I did not like this note: {note_content}. Generate new notes for the given content: {page_content}", return_tensors="pt")
-        # move inputs to same device as model
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        
-        outputs = model.generate(
-            **inputs,
-            max_length=2048,
-            num_return_sequences=1,
-            pad_token_id=tokenizer.eos_token_id,
-            temperature=0.7,
-        )
-        return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    # fallback to original implementation
+    inputs = tokenizer(f"I did not like this note: {note_content}. Generate new notes for the given content: {page_content}", return_tensors="pt")
+    # move inputs to same device as model
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    
+    outputs = model.generate(
+        **inputs,
+        max_length=2048,
+        pad_token_id=tokenizer.eos_token_id,
+        num_return_sequences=1,
+        temperature=0.7,
+        output_scores=False,  # Exclude unnecessary scores
+        return_dict_in_generate=True,  # Return generation metadata
+    )
+    
+    # Extract the generated tokens beyond the input tokens
+    generated_tokens = outputs.sequences[0][inputs['input_ids'].shape[-1]:]
+    
+    # Decode the generated tokens
+    final_output = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+    return final_output
 
 def generate_quiz_review(origin_content, wrong_questions, student_history):
     rl_model = RLModel(Config.MODEL_NAME)
