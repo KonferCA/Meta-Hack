@@ -11,119 +11,128 @@ from pathlib import Path
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-async def query_grok(content: str) -> str:  
-    messages = [
-        {
-            "role": "system",
-            "content": """You are a creative mathematics educator who generates unique and engaging content. 
-            Here's how to structure your responses, adapting your approach for each topic:
+async def query_grok(prompt: str) -> str:
+    try:
+        api_key = os.environ.get('GROQ_API_KEY')
+        if not api_key:
+            print("Warning: GROQ_API_KEY not found in environment variables")
+            return "Error: Missing API key"
             
-            # 📚 Main Topic Title
-            
-            > 💡 **Key Insight:** Opening concept that grabs attention...
-            
-            ## 🎯 1. Core Concept
-            Clear explanation of the fundamental idea, using rich formatting and examples.
-            
-            ### Example
-            > **Example:** Demonstrate a practical case...
-            
-            ***
-            
-            ## 🔑 2. Key Properties
-            
-            | Property | Description |
-            |----------|-------------|
-            | First    | Details...  |
-            | Second   | Details...  |
-            
-            * 📍 Major point one
-                * Sub-point A
-                * Sub-point B
-            * 📍 Major point two
-            
-            ---
-            
-            ## ⚡ 3. Mathematical Expression
-            
-            > 🔍 **Note:** Pay special attention to this concept
-            
-            Here's how we express this elegantly:
-            
-            $inline-math-example$
-            
-            For more complex equations:
-            $$
-            display-math-example
-            $$
-            
-            ___
-            
-            ## 🎨 Optional Sections (choose 2-3):
-            
-            ### 🤔 Common Misconceptions
-            * ❌ **Misconception:**
-        * ✅ **Reality:**
-            * 💡 **Remember:**
-            
-            ### 🌍 Real-world Applications
-            1. 🏭 **Industry:** application...
-            2. 🏠 **Daily Life:** application...
-            
-            ### 💭 Thought Experiments
-            > 🌟 **Imagine:** creative scenario...
-            > 
-            > 🎯 **Goal:** what to understand...
-            
-            ### 💪 Practice Tips
-            * 📝 Study strategy...
-            * 🔄 Practice method...
-            
-            ### ❓ FAQ
-            **Q:** Common question?
-            **A:** Detailed answer...
-            
-            ***
-            
-            ## 🎓 Key Takeaways
-            
-            > 📌 **Remember These Points:**
-            
-            1. 🔸 First main concept
-            2. 🔸 Second main concept
-            
-            """
-        },
-        {
-            "role": "user",
-            "content": content
+        messages = [
+            {
+                "role": "system",
+                "content": """You are a creative mathematics educator who generates unique and engaging content. 
+                Here's how to structure your responses, adapting your approach for each topic:
+                
+                # 📚 Main Topic Title
+                
+                > 💡 **Key Insight:** Opening concept that grabs attention...
+                
+                ## 🎯 1. Core Concept
+                Clear explanation of the fundamental idea, using rich formatting and examples.
+                
+                ### Example
+                > **Example:** Demonstrate a practical case...
+                
+                ***
+                
+                ## 🔑 2. Key Properties
+                
+                | Property | Description |
+                |----------|-------------|
+                | First    | Details...  |
+                | Second   | Details...  |
+                
+                * 📍 Major point one
+                    * Sub-point A
+                    * Sub-point B
+                * 📍 Major point two
+                
+                ---
+                
+                ## ⚡ 3. Mathematical Expression
+                
+                > 🔍 **Note:** Pay special attention to this concept
+                
+                Here's how we express this elegantly:
+                
+                $inline-math-example$
+                
+                For more complex equations:
+                $$
+                display-math-example
+                $$
+                
+                ___
+                
+                ## 🎨 Optional Sections (choose 2-3):
+                
+                ### 🤔 Common Misconceptions
+                * ❌ **Misconception:**
+            * ✅ **Reality:**
+                * 💡 **Remember:**
+                
+                ### 🌍 Real-world Applications
+                1. 🏭 **Industry:** application...
+                2. 🏠 **Daily Life:** application...
+                
+                ### 💭 Thought Experiments
+                > 🌟 **Imagine:** creative scenario...
+                > 
+                > 🎯 **Goal:** what to understand...
+                
+                ### 💪 Practice Tips
+                * 📝 Study strategy...
+                * 🔄 Practice method...
+                
+                ### ❓ FAQ
+                **Q:** Common question?
+                **A:** Detailed answer...
+                
+                ***
+                
+                ## 🎓 Key Takeaways
+                
+                > 📌 **Remember These Points:**
+                
+                1. 🔸 First main concept
+                2. 🔸 Second main concept
+                
+                """
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        
+        payload = {
+            "model": "llama3-groq-8b-8192-tool-use-preview",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 4096
         }
-    ]
-    
-    
-    payload = {
-        "model": "llama3-groq-8b-8192-tool-use-preview",
-        "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 4096
-    }
-    
-    headers = {
-        "Authorization": f"Bearer {GROK_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                response_content = data['choices'][0]['message']['content']
-                print("Response from GROK API:")
-                print(response_content)
-                return response_content
-            else:
-                error_text = await response.text()
-                raise Exception(f"Failed to query GROK API: {error_text}")
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    response_content = data['choices'][0]['message']['content']
+                    print("Response from GROK API:")
+                    print(response_content)
+                    return response_content
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"Failed to query GROK API: {error_text}")
+    except Exception as e:
+        print(f"Failed to query GROK API: {e}")
+        return "Error: Failed to query GROK API"
 
 async def process_pdf_content(content: str) -> str:
     summary = await query_grok(content)

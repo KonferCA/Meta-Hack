@@ -26,13 +26,13 @@ rm -f sql_app.db
 # create or update .env file
 echo "Creating/updating .env file..."
 cat > .env << EOL
-SECRET_KEY="your-secret-key-here"
+SECRET_KEY="${SECRET_KEY}"
 GROQ_API_KEY="${GROQ_API_KEY}"
 USE_GROQ=true
 EOL
 
 # set environment variables
-export SECRET_KEY="your-secret-key-here"
+export SECRET_KEY="${SECRET_KEY}"
 export GROQ_API_KEY="${GROQ_API_KEY}"
 export USE_GROQ=true
 
