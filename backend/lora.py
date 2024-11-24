@@ -3,6 +3,7 @@ from datasets import Dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TrainingArguments
 from peft import LoraConfig, get_peft_model, PeftModel
 from trl import SFTTrainer
+from config import Config
 
 def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights", num_train_epochs=5, max_steps=100):
     """
@@ -137,7 +138,7 @@ def main():
     ]
 
     # Model name and weight directory
-    model_name = "meta-llama/Llama-2-7b-hf"
+    model_name = Config.MODEL_NAME
     lora_weights_dir = "./lora_weights"
 
     # Step 1: Fine-tune and save LoRA weights
