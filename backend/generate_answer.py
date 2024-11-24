@@ -5,17 +5,7 @@ from huggingface_hub import login
 import asyncio
 from typing import AsyncGenerator
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"API Using Device: {device}")
-
-if Config.HUGGINGFACE_ACCESS_TOKEN:
-    login(token=Config.HUGGINGFACE_ACCESS_TOKEN)
-use_auth = bool(Config.HUGGINGFACE_ACCESS_TOKEN)
-
-tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME, use_auth_token=use_auth)
-model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, use_auth_token=use_auth).to(device)
-
-async def generate_tokens(input_text: str, max_tokens: int, temperature: float) -> AsyncGenerator[str, None]:
+async def generate_tokens(model, tokenizer, input_text: str, max_tokens: int, temperature: float) -> AsyncGenerator[str, None]:
     input_ids = tokenizer.encode(input_text, return_tensors="pt").to(device)
     attention_mask = torch.ones_like(input_ids).to(device)
     past = None
@@ -38,20 +28,3 @@ async def generate_tokens(input_text: str, max_tokens: int, temperature: float) 
             input_ids = token.unsqueeze(0)
             attention_mask = torch.cat([attention_mask, torch.ones_like(input_ids)], dim=-1)
             past = outputs.past_key_values
-
-async def main():
-    input_text = "Who is the Prime Minister of Canada?"
-    max_tokens = 50
-    temperature = 0.7
-    
-    response = ""
-    
-    async for token in generate_tokens(input_text, max_tokens, temperature):
-        response += token
-        print(token, end="", flush=True)
-    
-    print("\n\nFinal Response:")
-    print(response)
-
-if __name__ == "__main__":
-    asyncio.run(main())
