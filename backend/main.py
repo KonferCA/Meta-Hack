@@ -772,6 +772,7 @@ async def submit_quiz(
     total_questions = len(quiz.questions)
     correct_answers = 0
     questions_results = []
+    wrong_questions = ""
     
     for question in quiz.questions:
         student_answer_id = answers.get(str(question.id))
@@ -790,6 +791,8 @@ async def submit_quiz(
         is_correct = student_answer_id == question.correct_choice_id
         if is_correct:
             correct_answers += 1
+        else:
+            wrong_questions = f"{question}\n"
             
         questions_results.append({
             "id": question.id,
@@ -805,7 +808,8 @@ async def submit_quiz(
     result = QuizResult(
         quiz_id=quiz_id,
         student_id=current_user.id,
-        score=score
+        score=score,
+        wrong_questions=wrong_questions,
     )
     db.add(result)
     db.commit()

@@ -182,6 +182,7 @@ class QuizResult(Base):
     quiz_id = Column(Integer, ForeignKey("quizzes.id"))
     student_id = Column(Integer, ForeignKey("users.id"))
     score = Column(Float)
+    wrong_questions = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # relationships
