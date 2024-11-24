@@ -14,6 +14,7 @@ from config import Config
 from generate_answer import generate_tokens
 import asyncio
 from huggingface_hub import login
+import gc
 
 class EfficientPerUserTrainer:
     def __init__(
@@ -28,48 +29,85 @@ class EfficientPerUserTrainer:
         self.base_model_path = Config.MODEL_NAME
         self.output_dir = output_dir
         self.device = device
-        print(self.base_model_path)
+        print(f"Using model: {self.base_model_path}")
+        
+        # Clear CUDA cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
         
         # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.base_model_path, use_auth_token=use_auth)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.base_model_path, 
+            token=Config.HUGGINGFACE_ACCESS_TOKEN if use_auth else None
+        )
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             
         # Load model in 8-bit to reduce memory usage
         self.base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_path,
-            use_auth_token=use_auth
+            torch_dtype=torch.float16,
+            load_in_8bit=True,
+            device_map="auto",
+            token=Config.HUGGINGFACE_ACCESS_TOKEN if use_auth else None
         )
         
-        # Prepare model for k-bit training
+        # Prepare model for training
         self.base_model = prepare_model_for_kbit_training(self.base_model)
 
+    def detect_target_modules(self):
+        """Detect appropriate target modules for the model architecture"""
+        model_architecture = self.base_model.config.architectures[0].lower() if self.base_model.config.architectures else ""
+        
+        if "llama" in model_architecture:
+            return ["q_proj", "v_proj"]
+        elif "gpt" in model_architecture:
+            return ["c_attn"]
+        elif "opt" in model_architecture:
+            return ["q_proj", "k_proj", "v_proj"]
+        else:
+            # Default to a common pattern
+            potential_targets = ["query", "value", "q_proj", "v_proj", "c_attn"]
+            available_modules = [name for name, _ in self.base_model.named_modules()]
+            return [target for target in potential_targets if any(target in module for module in available_modules)]
+
     def create_lora_config(self, rank: int = 8) -> LoraConfig:
-        """Create LoRA configuration"""
+        """Create LoRA configuration based on model architecture"""
+        target_modules = self.detect_target_modules()
+        print(f"Using target modules: {target_modules}")
+        
         return LoraConfig(
-            r=rank,  # Rank of update matrices
-            lora_alpha=32,  # Alpha parameter for LoRA scaling
-            target_modules=["q_proj", "v_proj"],  # Which modules to apply LoRA to
+            r=rank,
+            lora_alpha=32,
+            target_modules=target_modules,
             lora_dropout=0.05,
             bias="none",
             task_type=TaskType.CAUSAL_LM
         )
 
     def prepare_training_args(self) -> TrainingArguments:
-        """Prepare training arguments"""
+        """Prepare training arguments with memory optimization"""
         return TrainingArguments(
             output_dir=self.output_dir,
-            per_device_train_batch_size=4,
+            per_device_train_batch_size=1,
             gradient_accumulation_steps=4,
             warmup_steps=100,
             max_steps=1000,
             learning_rate=2e-4,
             fp16=True,
             logging_steps=10,
+            gradient_checkpointing=True,
+            optim="paged_adamw_32bit",
         )
 
     def train_user_model(self, user_id: str, user_data: List[Dict]):
         """Train a LoRA adapter for a specific user"""
+        # Clear CUDA cache before training
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
+            
         # Create LoRA config
         lora_config = self.create_lora_config()
         
@@ -100,11 +138,16 @@ class EfficientPerUserTrainer:
                 examples["text"],
                 padding="max_length",
                 truncation=True,
-                max_length=512
+                max_length=512,
+                return_tensors=None
             )
         
         try:
-            tokenized_dataset = dataset.map(tokenize_function, batched=True)
+            tokenized_dataset = dataset.map(
+                tokenize_function,
+                batched=True,
+                remove_columns=dataset.column_names
+            )
         except Exception as e:
             raise ValueError(f"Error tokenizing dataset: {str(e)}")
         
@@ -112,8 +155,9 @@ class EfficientPerUserTrainer:
         training_args = self.prepare_training_args()
         trainer = Trainer(
             model=model,
+            args=training_args,
             train_dataset=tokenized_dataset,
-            args=training_args
+            data_collator=lambda data: {'input_ids': torch.stack([torch.tensor(f) for f in data])}
         )
         
         trainer.train()
@@ -121,16 +165,23 @@ class EfficientPerUserTrainer:
         # Save LoRA adapter
         model.save_pretrained(f"{self.output_dir}/{user_id}")
         
+        # Clear memory
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
+
     def load_user_model(self, user_id: str):
         """Load a user's LoRA adapter"""
         use_auth = bool(Config.HUGGINGFACE_ACCESS_TOKEN)
         
         # Load base model (can be shared across users)
-        base_model = LlamaForCausalLM.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_path,
+            torch_dtype=torch.float16,
             load_in_8bit=True,
             device_map="auto",
-            use_auth_token=use_auth
+            token=Config.HUGGINGFACE_ACCESS_TOKEN if use_auth else None
         )
         
         # Load LoRA adapter
@@ -158,7 +209,6 @@ class EfficientPerUserTrainer:
         )
         return size_bytes / (1024 * 1024)  # Convert to MB
 
-# Example usage
 async def main():
     trainer = EfficientPerUserTrainer(
         output_dir="user_adapters"
@@ -202,6 +252,9 @@ async def main():
         
     except Exception as e:
         print(f"Error: {str(e)}")
+        if hasattr(e, '__traceback__'):
+            import traceback
+            traceback.print_exc()
 
 if __name__ == "__main__":
     asyncio.run(main())
