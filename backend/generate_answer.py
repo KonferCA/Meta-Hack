@@ -11,7 +11,7 @@ def load_base_model():
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME, 
     token=Config.HUGGINGFACE_ACCESS_TOKEN, 
-    max_new_tokens=300)
+    max_new_tokens=300).to(device)
         
     # Load model in 8-bit to reduce memory usage
     base_model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, 
