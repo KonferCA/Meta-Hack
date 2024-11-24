@@ -53,7 +53,7 @@ def get_device():
 
 def generate_initial_note(page_content, model, tokenizer):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    inputs = tokenizer(f"Generate notes for the given content: {page_content}", return_tensors="pt").to(device)
+    inputs = tokenizer(f"Generate notes for the given content: {page_content}\n\nDo not include the original content in your answer.", return_tensors="pt").to(device)
     outputs = model.generate(
         **inputs,
         max_length=2048,
