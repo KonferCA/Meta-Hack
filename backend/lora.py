@@ -9,6 +9,7 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
     """
     Fine-tunes the model using the given dataset and saves the LoRA weights.
     """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     dataset = Dataset.from_list(data)
     
     # Use GPU if available
@@ -21,14 +22,15 @@ def fine_tune_and_save_lora_weights(model_name, data, output_dir="./lora_weights
     )
 
     # Load tokenizer and model
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right", truncation_side="right")
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right", truncation_side="right", max_next_tokens=300, token=Config.HUGGINGFACE_ACCESS_TOKEN)
     tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         device_map="auto",
         quantization_config=bnb_config,
-        torch_dtype=torch.float16
+        torch_dtype=torch.float16,
+        token=Config.HUGGINGFACE_ACCESS_TOKEN
     ).to(device)
     model.config.pad_token_id = tokenizer.pad_token_id
     model.config.use_cache = False
@@ -125,12 +127,13 @@ def apply_lora_weights_to_model(base_model_name, lora_weights_dir):
     )
 
     # Load tokenizer and base model
-    tokenizer = AutoTokenizer.from_pretrained(base_model_name, padding_side="right", truncation_side="right")
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name, padding_side="right", truncation_side="right", token=Config.HUGGINGFACE_ACCESS_TOKEN, max_new_tokens=300)
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
         device_map="auto",
         quantization_config=bnb_config,
         torch_dtype=torch.float16,
+        token=Config.HUGGINGFACE_ACCESS_TOKEN,
     ).to(device)
 
     # Apply LoRA weights
