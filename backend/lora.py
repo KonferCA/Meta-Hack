@@ -13,13 +13,13 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from config import Config
 # from huggingface_hub import login
 
-# model_id = "meta-llama/Meta-Llama-3.1-8B"
+model_id = "meta-llama/Llama-3.1-8B-Instruct"
 
 # if Config.HUGGINGFACE_ACCESS_TOKEN:
 #     login(token=Config.HUGGINGFACE_ACCESS_TOKEN)
 # use_auth = bool(Config.HUGGINGFACE_ACCESS_TOKEN)
 
-model_id = Config.MODEL_NAME
+# model_id = Config.MODEL_NAME
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
