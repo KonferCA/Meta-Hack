@@ -13,6 +13,8 @@ from typing import List, Dict
 from config import Config
 from generate_answer import generate_tokens
 import asyncio
+from huggingface_hub import login
+
 
 class EfficientPerUserTrainer:
     def __init__(

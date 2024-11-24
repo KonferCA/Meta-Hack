@@ -1,7 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from config import Config
-from huggingface_hub import login
 import asyncio
 from typing import AsyncGenerator
 
