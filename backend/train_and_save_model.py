@@ -32,15 +32,10 @@ class EfficientPerUserTrainer:
         
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.base_model_path, use_auth_token=use_auth)
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             
         # Load model in 8-bit to reduce memory usage
         self.base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_path,
-            load_in_8bit=True,
-            device_map="auto",
-            torch_dtype=torch.float16,
             use_auth_token=use_auth
         )
         
