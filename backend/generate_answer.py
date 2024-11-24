@@ -7,7 +7,7 @@ from lora import fine_tune_and_save_lora_weights, apply_lora_weights_to_model
 
 def load_base_model():
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(Config.mro, token=Config.HUGGINGFACE_ACCESS_TOKEN)
+    tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME, token=Config.HUGGINGFACE_ACCESS_TOKEN)
         
     # Load model in 8-bit to reduce memory usage
     base_model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, token=Config.HUGGINGFACE_ACCESS_TOKEN)
