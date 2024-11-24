@@ -139,8 +139,7 @@ async def process_pdf_content(content: str) -> str:
 
 async def query_grok_quiz(content: str) -> str:
     try:
-        api_key = GROQ_API_KEY
-        if not api_key:
+        if not GROQ_API_KEY:
             print("warning: groq_api_key not found")
             return "Error: Missing API key"
             
@@ -178,7 +177,7 @@ async def query_grok_quiz(content: str) -> str:
         }
         
         headers = {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
         

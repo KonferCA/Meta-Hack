@@ -20,7 +20,7 @@ import models
 import database
 from database import engine, get_db
 from models import User, UserRole, Course, Section, Page, Enrollment, Quiz, QuizQuestion, QuizQuestionChoice, QuizResult  # update imports
-from utils.grok import query_grok, process_pdf_content, generate_quiz, generate_course_details
+from utils.grok import query_grok, process_pdf_content, generate_quiz, generate_course_details, GROQ_API_KEY
 from utils.pdf_processor import process_pdf, process_pdfs
 import PyPDF2
 
@@ -1022,6 +1022,13 @@ async def submit_review_feedback(
     rl_model.replay(batch_size=32)
     
     return {"status": "success"}
+
+@app.on_event("startup")
+async def startup_event():
+    if not GROQ_API_KEY:
+        print("WARNING: GROQ_API_KEY not found in environment variables")
+    else:
+        print("GROQ_API_KEY loaded successfully")
 
 if __name__ == "__main__":
     uvicorn.run(
