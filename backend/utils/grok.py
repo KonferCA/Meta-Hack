@@ -150,7 +150,7 @@ async def query_grok_quiz(content: str) -> str:
                 {
                     "question": "What is the integral of 2x dx?",
                     "options": ["x^2", "x^2 + C", "2x^2", "2x^2 + C"],
-                    "correctAnswer": 1
+                    "correctAnswer": 2
                 }
             ]
 
