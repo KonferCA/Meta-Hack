@@ -8,10 +8,14 @@ from rl_model import RLModel
 
 def load_base_model():
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME, token=Config.HUGGINGFACE_ACCESS_TOKEN)
+    tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME, 
+    token=Config.HUGGINGFACE_ACCESS_TOKEN, 
+    kwargs={"max_new_tokens": 8096})
         
     # Load model in 8-bit to reduce memory usage
-    base_model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, token=Config.HUGGINGFACE_ACCESS_TOKEN)
+    base_model = AutoModelForCausalLM.from_pretrained(Config.MODEL_NAME, 
+    token=Config.HUGGINGFACE_ACCESS_TOKEN,
+    kwargs={"max_new_tokens": 8096})
         
     return base_model, tokenizer
 
