@@ -1,5 +1,5 @@
 import torch
-from transformers import LlamaForCausalLM, LlamaTokenizer
+from transformers import LlamaForCausalLM, LlamaTokenizer, Trainer, TrainingArguments
 from peft import (
     get_peft_model,
     LoraConfig,
@@ -14,7 +14,6 @@ from config import Config
 from generate_answer import generate_tokens
 import asyncio
 from huggingface_hub import login
-
 
 class EfficientPerUserTrainer:
     def __init__(
@@ -58,18 +57,18 @@ class EfficientPerUserTrainer:
             task_type=TaskType.CAUSAL_LM
         )
 
-    def prepare_training_args(self) -> dict:
+    def prepare_training_args(self) -> TrainingArguments:
         """Prepare training arguments"""
-        return {
-            "per_device_train_batch_size": 4,
-            "gradient_accumulation_steps": 4,
-            "warmup_steps": 100,
-            "max_steps": 1000,
-            "learning_rate": 2e-4,
-            "fp16": True,
-            "logging_steps": 10,
-            "output_dir": self.output_dir,
-        }
+        return TrainingArguments(
+            output_dir=self.output_dir,
+            per_device_train_batch_size=4,
+            gradient_accumulation_steps=4,
+            warmup_steps=100,
+            max_steps=1000,
+            learning_rate=2e-4,
+            fp16=True,
+            logging_steps=10,
+        )
 
     def train_user_model(self, user_id: str, user_data: List[Dict]):
         """Train a LoRA adapter for a specific user"""
@@ -82,16 +81,23 @@ class EfficientPerUserTrainer:
         # Format data
         formatted_data = []
         for item in user_data:
+            if not isinstance(item.get('prompt', ''), str) or not isinstance(item.get('response', ''), str):
+                raise ValueError("Prompt and response must be strings")
             text = f"### User: {item['prompt']}\n### Assistant: {item['response']}</s>"
             formatted_data.append({
                 "text": text
             })
         
         # Create dataset
-        dataset = Dataset.from_list(formatted_data)
+        try:
+            dataset = Dataset.from_list(formatted_data)
+        except Exception as e:
+            raise ValueError(f"Error creating dataset: {str(e)}")
         
         # Tokenize dataset
         def tokenize_function(examples):
+            if not isinstance(examples["text"], (str, list)):
+                raise ValueError(f"Invalid text format: {type(examples['text'])}")
             return self.tokenizer(
                 examples["text"],
                 padding="max_length",
@@ -99,14 +105,17 @@ class EfficientPerUserTrainer:
                 max_length=512
             )
         
-        tokenized_dataset = dataset.map(tokenize_function, batched=True)
+        try:
+            tokenized_dataset = dataset.map(tokenize_function, batched=True)
+        except Exception as e:
+            raise ValueError(f"Error tokenizing dataset: {str(e)}")
         
         # Train model
         training_args = self.prepare_training_args()
-        trainer = transformers.Trainer(
+        trainer = Trainer(
             model=model,
             train_dataset=tokenized_dataset,
-            args=transformers.TrainingArguments(**training_args)
+            args=training_args
         )
         
         trainer.train()
@@ -116,17 +125,24 @@ class EfficientPerUserTrainer:
         
     def load_user_model(self, user_id: str):
         """Load a user's LoRA adapter"""
+        use_auth = bool(Config.HUGGINGFACE_ACCESS_TOKEN)
+        
         # Load base model (can be shared across users)
         base_model = LlamaForCausalLM.from_pretrained(
             self.base_model_path,
             load_in_8bit=True,
-            device_map="auto"
+            device_map="auto",
+            use_auth_token=use_auth
         )
         
         # Load LoRA adapter
+        adapter_path = f"{self.output_dir}/{user_id}"
+        if not os.path.exists(adapter_path):
+            raise ValueError(f"No adapter found for user {user_id} at {adapter_path}")
+            
         model = PeftModel.from_pretrained(
             base_model,
-            f"{self.output_dir}/{user_id}"
+            adapter_path
         )
         
         return model
@@ -134,6 +150,9 @@ class EfficientPerUserTrainer:
     def get_adapter_size(self, user_id: str) -> float:
         """Get size of user's LoRA adapter in MB"""
         adapter_path = f"{self.output_dir}/{user_id}"
+        if not os.path.exists(adapter_path):
+            raise ValueError(f"No adapter found for user {user_id} at {adapter_path}")
+            
         size_bytes = sum(
             os.path.getsize(os.path.join(adapter_path, f)) 
             for f in os.listdir(adapter_path) 
@@ -159,28 +178,32 @@ async def main():
         }
     ]
     
-    # Train adapter for a specific user
-    trainer.train_user_model("user123", user_data)
-    
-    # Print adapter size
-    adapter_size = trainer.get_adapter_size("user123")
-    print(f"LoRA adapter size: {adapter_size:.2f} MB")
-    
-    # Load user-specific model
-    user_model = trainer.load_user_model("user123")
+    try:
+        # Train adapter for a specific user
+        trainer.train_user_model("user123", user_data)
+        
+        # Print adapter size
+        adapter_size = trainer.get_adapter_size("user123")
+        print(f"LoRA adapter size: {adapter_size:.2f} MB")
+        
+        # Load user-specific model
+        user_model = trainer.load_user_model("user123")
 
-    input_text = "Who is the Prime Minister of Canada?"
-    max_tokens = 50
-    temperature = 0.7
-    
-    response = ""
-    
-    async for token in generate_tokens(user_model, trainer.tokenizer, input_text, max_tokens, temperature):
-        response += token
-        print(token, end="", flush=True)
-    
-    print("\n\nFinal Response:")
-    print(response)
+        input_text = "Who is the Prime Minister of Canada?"
+        max_tokens = 50
+        temperature = 0.7
+        
+        response = ""
+        
+        async for token in generate_tokens(user_model, trainer.tokenizer, input_text, max_tokens, temperature):
+            response += token
+            print(token, end="", flush=True)
+        
+        print("\n\nFinal Response:")
+        print(response)
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())
