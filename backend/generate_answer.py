@@ -49,3 +49,7 @@ def generate_note(page_content, note_content, model, tokenizer):
     outputs = model.generate(**inputs)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
+def generate_quiz_review(origin_content, wrong_questions, model, tokenizer):
+    inputs = tokenizer(f"I generated note based on this content: {origin_content} and I got these questions wrong: {wrong_questions}. Help me to generate review based on wrong questions", return_tensors="pt")
+    outputs = model.generate(**inputs)
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)

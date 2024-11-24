@@ -175,6 +175,7 @@ class QuizQuestionChoice(Base):
                           foreign_keys="[QuizQuestionChoice.quiz_question_id]")
 
 class QuizResult(Base):
+    # todo: store content and wrong quiz question
     __tablename__ = "quiz_results"
     
     id = Column(Integer, primary_key=True, index=True)
