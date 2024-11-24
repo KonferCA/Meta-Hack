@@ -4,6 +4,7 @@ from torch import nn
 import numpy as np
 from collections import deque
 import random
+import os
 
 class RLModel(nn.Module):
     def __init__(self, base_model_name):
@@ -64,3 +65,19 @@ class RLModel(nn.Module):
         # make it explore less over time
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+    def save_state(self, path):
+        """save model state and memory"""
+        torch.save({
+            'model_state': self.model.state_dict(),
+            'memory': list(self.memory),
+            'epsilon': self.epsilon
+        }, path)
+    
+    def load_state(self, path):
+        """load model state and memory"""
+        if os.path.exists(path):
+            checkpoint = torch.load(path)
+            self.model.load_state_dict(checkpoint['model_state'])
+            self.memory = deque(checkpoint['memory'], maxlen=1000)
+            self.epsilon = checkpoint['epsilon']

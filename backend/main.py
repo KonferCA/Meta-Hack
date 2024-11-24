@@ -974,6 +974,42 @@ async def enroll_in_course(
     
     return {"message": "Successfully enrolled in course"}
 
+@app.post("/quizzes/{quiz_id}/review/feedback")
+async def submit_review_feedback(
+    quiz_id: int,
+    feedback: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # get the review state and action from session or db
+    previous_state = feedback.get("state")
+    previous_action = feedback.get("action")
+    
+    # calculate reward based on improvement
+    new_quiz_score = feedback.get("new_score", 0)
+    old_quiz_score = feedback.get("old_score", 0)
+    improvement = new_quiz_score - old_quiz_score
+    
+    # get current state after review
+    current_quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    current_state = rl_model.get_state(
+        content=current_quiz.content,
+        feedback=f"Score improved by {improvement}"
+    )
+    
+    # update rl model
+    rl_model.remember(
+        state=previous_state,
+        action=previous_action,
+        reward=improvement,
+        next_state=current_state
+    )
+    
+    # train on batch
+    rl_model.replay(batch_size=32)
+    
+    return {"status": "success"}
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app", 

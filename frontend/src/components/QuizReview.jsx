@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
-export default function QuizReview({ quizId, wrongQuestions, onClose }) {
+export default function QuizReview({ quizId, wrongQuestions, previousScore, onClose }) {
     const [review, setReview] = useState('')
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [reviewState, setReviewState] = useState(null)
+    const [reviewAction, setReviewAction] = useState(null)
 
     useEffect(() => {
         const fetchReview = async () => {
@@ -13,13 +15,16 @@ export default function QuizReview({ quizId, wrongQuestions, onClose }) {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({ wrongQuestions })
                 })
-                if (!response.ok) {
-                    throw new Error('Failed to fetch review')
-                }
+                
+                if (!response.ok) throw new Error('Failed to fetch review')
+                
                 const data = await response.json()
                 setReview(data.review)
+                setReviewState(data.state)
+                setReviewAction(data.action)
             } catch (err) {
                 setError('Failed to load review. Please try again.')
             } finally {
@@ -27,7 +32,27 @@ export default function QuizReview({ quizId, wrongQuestions, onClose }) {
             }
         }
         fetchReview()
-    }, [quizId])
+    }, [quizId, wrongQuestions])
+
+    // submit feedback after next quiz
+    const submitReviewFeedback = async (newScore) => {
+        try {
+            await fetch(`/api/quizzes/${quizId}/review/feedback`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    state: reviewState,
+                    action: reviewAction,
+                    old_score: previousScore,
+                    new_score: newScore
+                })
+            })
+        } catch (err) {
+            console.error('Failed to submit review feedback:', err)
+        }
+    }
 
     return (
         <motion.div 
