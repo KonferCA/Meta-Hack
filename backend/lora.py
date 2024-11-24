@@ -22,6 +22,7 @@ from config import Config
 model_id = Config.MODEL_NAME
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
+tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 model = AutoModelForCausalLM.from_pretrained(model_id, token=Config.HUGGINGFACE_ACCESS_TOKEN)
 
 dataset = load_dataset("imdb", split="train")
