@@ -90,15 +90,14 @@ class Page(Base):
     __tablename__ = "pages"
 
     id = Column(Integer, primary_key=True, index=True)
-    content = Column(String, nullable=False)
-    course_id = Column(Integer, ForeignKey("courses.id"))
+    content = Column(String)
+    order = Column(Integer)
     section_id = Column(Integer, ForeignKey("sections.id"))
-    order = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    course_id = Column(Integer, ForeignKey("courses.id"))
 
     # relationships
-    course = relationship("Course", back_populates="pages")
     section = relationship("Section", back_populates="pages")
+    course = relationship("Course", back_populates="pages")
 
 class Enrollment(Base):
     __tablename__ = "enrollments"

@@ -15,84 +15,7 @@ async def query_grok(content: str) -> str:
     messages = [
         {
             "role": "system",
-            "content": """You are a creative mathematics educator who generates unique and engaging content. 
-            Here's how to structure your responses, adapting your approach for each topic:
-            
-            # 📚 Main Topic Title
-            
-            > 💡 **Key Insight:** Opening concept that grabs attention...
-            
-            ## 🎯 1. Core Concept
-            Clear explanation of the fundamental idea, using rich formatting and examples.
-            
-            ### Example
-            > **Example:** Demonstrate a practical case...
-            
-            ***
-            
-            ## 🔑 2. Key Properties
-            
-            | Property | Description |
-            |----------|-------------|
-            | First    | Details...  |
-            | Second   | Details...  |
-            
-            * 📍 Major point one
-                * Sub-point A
-                * Sub-point B
-            * 📍 Major point two
-            
-            ---
-            
-            ## ⚡ 3. Mathematical Expression
-            
-            > 🔍 **Note:** Pay special attention to this concept
-            
-            Here's how we express this elegantly:
-            
-            $inline-math-example$
-            
-            For more complex equations:
-            $$
-            display-math-example
-            $$
-            
-            ___
-            
-            ## 🎨 Optional Sections (choose 2-3):
-            
-            ### 🤔 Common Misconceptions
-            * ❌ **Misconception:**
-        * ✅ **Reality:**
-            * 💡 **Remember:**
-            
-            ### 🌍 Real-world Applications
-            1. 🏭 **Industry:** application...
-            2. 🏠 **Daily Life:** application...
-            
-            ### 💭 Thought Experiments
-            > 🌟 **Imagine:** creative scenario...
-            > 
-            > 🎯 **Goal:** what to understand...
-            
-            ### 💪 Practice Tips
-            * 📝 Study strategy...
-            * 🔄 Practice method...
-            
-            ### ❓ FAQ
-            **Q:** Common question?
-            **A:** Detailed answer...
-            
-            ***
-            
-            ## 🎓 Key Takeaways
-            
-            > 📌 **Remember These Points:**
-            
-            1. 🔸 First main concept
-            2. 🔸 Second main concept
-            
-            """
+            "content": """You are a creative mathematics educator who generates unique and engaging content..."""
         },
         {
             "role": "user",
@@ -104,7 +27,7 @@ async def query_grok(content: str) -> str:
         "model": "llama3-groq-70b-8192-tool-use-preview",
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 5
+        "max_tokens": 2048
     }
     
     headers = {
@@ -112,33 +35,17 @@ async def query_grok(content: str) -> str:
         "Content-Type": "application/json"
     }
     
-    while True:  # keep trying until successful
-        async with aiohttp.ClientSession() as session:
-            async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    print("Response from GROK API:")
-                    print(data['choices'][0]['message']['content'])
-                    return data['choices'][0]['message']['content']
-                else:
-                    error_text = await response.text()
-                    # check if it's a rate limit error
-                    if "rate_limit_exceeded" in error_text:
-                        try:
-                            # parse error json
-                            error_data = json.loads(error_text)
-                            # extract wait time using regex
-                            wait_time_match = re.search(r'try again in (\d+\.?\d*)s', 
-                                error_data['error']['message'])
-                            if wait_time_match:
-                                wait_time = float(wait_time_match.group(1))
-                                print(f"Rate limit reached. Waiting {wait_time} seconds...")
-                                await asyncio.sleep(wait_time + 0.5)  # add small buffer
-                                continue  # retry after waiting
-                        except (json.JSONDecodeError, KeyError, AttributeError):
-                            pass
-                    # if not a rate limit error or couldn't parse wait time
-                    raise Exception(f"Failed to query GROK API: {error_text}")
+    async with aiohttp.ClientSession() as session:
+        async with session.post(GROK_API_URL, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                response_content = data['choices'][0]['message']['content']
+                print("Response from GROK API:")
+                print(response_content)
+                return response_content
+            else:
+                error_text = await response.text()
+                raise Exception(f"Failed to query GROK API: {error_text}")
 
 async def process_pdf_content(pdf_content: str, filename: str) -> tuple[str, str]:
     summary = await query_grok(pdf_content)
