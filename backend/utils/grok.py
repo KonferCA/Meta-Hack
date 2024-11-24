@@ -130,7 +130,7 @@ async def query_grok(prompt: str) -> str:
                     error_text = await response.text()
                     raise Exception(f"Failed to query GROK API: {error_text}")
     except Exception as e:
-        print(f"Failed to query GROK API: {e}")
+        print(f"Failed to query GROK API: {e}, api_key: {GROQ_API_KEY}")
         return "Error: Failed to query GROK API"
 
 async def process_pdf_content(content: str) -> str:
@@ -190,7 +190,7 @@ async def query_grok_quiz(content: str) -> str:
                     return response_content
                 else:
                     error_text = await response.text()
-                    raise Exception(f"Failed to query GROK API: {error_text}")
+                    raise Exception(f"Failed to query GROK API: {error_text}, api_key: {GROQ_API_KEY}")
     except Exception as e:
         print(f"Failed to generate quiz: {e}")
         return "Error: Failed to generate quiz"
